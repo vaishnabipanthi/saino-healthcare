@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SAINO HEALTH - Provider Registration - Check & Submit</title>
+  <meta name="description" content="Nepal's premier connected healthcare marketplace. Review all the information you provided before submitting your healthcare provider registration.">
+
+  <!-- Google Fonts (Plus Jakarta Sans & Inter) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'Inter', 'sans-serif'],
+          },
+          colors: {
+            saino: {
+              red: '#ad0b0e',
+              'red-dark': '#B3121A',
+              'red-light': '#FDE8E9',
+              navy: '#1A2B4C',
+              'navy-light': '#2A4070',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Favicon & Styles -->
+  <link rel="icon" type="image/png" href="../assets/logo.png">
+  <link rel="stylesheet" href="../css/custom.css">
+  <link rel="stylesheet" href="onboarding/provider-onboarding.css">
+  <script src="onboarding/provider-onboarding.js" defer></script>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: "Plus Jakarta Sans", Arial, Helvetica, sans-serif;
+      background: #f4f7f9;
+      color: #222;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* CONTAINER */
+    .container {
+      width: 92%;
+      max-width: 1100px;
+      margin: 30px auto 50px;
+    }
+
+    .page-title h1 {
+      font-size: 26px;
+      margin-bottom: 3px;
+      font-weight: 800;
+    }
+
+    .page-title h2 {
+      font-size: 20px;
+      margin-bottom: 5px;
+      font-weight: 700;
+      color: #ad0b0e;
+    }
+
+    .page-title p {
+      color: #666;
+      font-size: 13px;
+      margin-bottom: 22px;
+    }
+
+    /* STEPS */
+    .steps {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 25px;
+      position: relative;
+    }
+
+    .steps::before {
+      content: "";
+      position: absolute;
+      left: 5%;
+      right: 5%;
+      top: 17px;
+      height: 2px;
+      background: #ddd;
+    }
+
+    .step {
+      background: #f4f7f9;
+      padding: 0 8px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: #777;
+      font-size: 11px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .step-number {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #edf0f2;
+      border: 1px solid #d2d7db;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-weight: bold;
+    }
+
+    .step.active {
+      color: #ad0b0e;
+      font-weight: bold;
+    }
+
+    .step.active .step-number {
+      background: #ad0b0e;
+      color: white;
+      border-color: #ad0b0e;
+    }
+
+    /* REVIEW CARD */
+    .review-card {
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .review-header {
+      background: #fafafa;
+      border-bottom: 1px solid #ddd;
+      padding: 17px 22px;
+    }
+
+    .review-header h3 {
+      font-size: 17px;
+      margin-bottom: 3px;
+      font-weight: 800;
+    }
+
+    .review-header p {
+      color: #777;
+      font-size: 12px;
+    }
+
+    .review-section {
+      padding: 20px 22px;
+      border-bottom: 1px solid #e5e5e5;
+    }
+
+    .section-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+
+    .section-title h3 {
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .edit-btn {
+      border: 1px solid #ccc;
+      background: white;
+      padding: 6px 13px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+
+    .edit-btn:hover {
+      border-color: #ad0b0e;
+      color: #ad0b0e;
+    }
+
+    .details-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px 30px;
+    }
+
+    .detail {
+      border-bottom: 1px solid #eee;
+      padding-bottom: 9px;
+    }
+
+    .detail-label {
+      font-size: 11px;
+      color: #777;
+      margin-bottom: 3px;
+    }
+
+    .detail-value {
+      font-size: 14px;
+      font-weight: bold;
+      color: #333;
+    }
+
+    .document-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 11px 0;
+      border-bottom: 1px solid #eee;
+    }
+
+    .document-name {
+      font-size: 13px;
+      font-weight: bold;
+    }
+
+    .document-status {
+      color: #168447;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .agreement-summary {
+      background: #f3faf6;
+      border: 1px solid #b9dfc8;
+      border-radius: 8px;
+      padding: 15px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .check-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: #168447;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+
+    .final-confirmation {
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      padding: 22px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .final-confirmation label {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .final-confirmation input {
+      width: 18px;
+      height: 18px;
+      margin-top: 2px;
+      accent-color: #ad0b0e;
+    }
+
+    .submit-area {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+    }
+
+    .back-btn {
+      padding: 11px 22px;
+      border: 1px solid #aaa;
+      background: white;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: bold;
+      transition: all 0.2s ease;
+    }
+
+    .back-btn:hover {
+      background: #f8fafc;
+    }
+
+    .submit-btn {
+      padding: 11px 25px;
+      border: none;
+      background: #ad0b0e;
+      color: white;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 12px;
+      transition: all 0.2s ease;
+    }
+
+    .submit-btn:hover {
+      background: #8f090c;
+    }
+
+    @media(max-width: 800px) {
+      .steps {
+        overflow-x: auto;
+        justify-content: flex-start;
+        gap: 20px;
+      }
+      .steps::before {
+        display: none;
+      }
+      .details-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media(max-width: 600px) {
+      .submit-area {
+        flex-direction: column;
+      }
+      .submit-area button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+
+<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen w-full overflow-x-hidden flex flex-col selection:bg-rose-500 selection:text-white">
+
+   <!-- ================= 1. TOP EMERGENCY RIBBON ================= -->
+  <aside id="topEmergencyRibbon" class="w-full bg-[#ad0b0e] text-white py-1.5 px-4 text-xs font-semibold relative z-50">
+    <div class="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-3 text-[11px] sm:text-xs">
+      <div class="flex items-center gap-2">
+        <i data-lucide="droplet" class="w-3.5 h-3.5 text-white fill-white"></i>
+        <span><strong>24/7 Emergency Blood Bank:</strong> Find nearby blood banks</span>
+      </div>
+
+      <div class="hidden md:flex items-center gap-2">
+        <i data-lucide="truck" class="w-3.5 h-3.5 text-white"></i>
+        <span><strong>Ambulance Call Center:</strong> Quick response • 24/7</span>
+      </div>
+
+      <div class="flex items-center gap-4 ml-auto sm:ml-0">
+        <a href="tel:102" class="flex items-center gap-1.5 hover:underline">
+          <i data-lucide="phone" class="w-3.5 h-3.5 text-white"></i>
+          <span><strong>Call Now:</strong> +977-1-4288484</span>
+        </a>
+        <button onclick="document.getElementById('topEmergencyRibbon').style.display='none'" class="text-white/80 hover:text-white" aria-label="Close Ribbon">
+          <i data-lucide="x" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ================= 2. MAIN NAVBAR WITH REAL SAINO LOGO IMAGE ================= -->
+  <header class="w-full bg-white border-b border-slate-200 sticky top-0 z-40 shadow-xs">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 h-18 flex items-center justify-between">
+      
+      <!-- Real SAINO Logo Image -->
+      <a href="#" onclick="event.preventDefault(); navigateTo('marketplace')" class="flex items-center gap-2.5">
+        <img src="assets/logo.png" onerror="this.onerror=null; this.src='../assets/logo.png';" alt="SAINO HEALTH" class="h-16 sm:h-20 md:h-24 w-auto object-contain">
+      </a>
+
+      <!-- Center Nav Links -->
+      <nav class="hidden md:flex items-center gap-7 text-xs sm:text-sm font-semibold text-slate-600">
+        <a href="#" onclick="event.preventDefault(); navigateTo('marketplace')" class="nav-link active pb-1">
+          Home
+        </a>
+        <a href="#" onclick="event.preventDefault(); navigateTo('discovery')" class="nav-link hover:text-[#ad0b0e] transition pb-1">
+          Discover
+        </a>
+        <a href="#" onclick="event.preventDefault(); navigateTo('find-healthcare')" class="nav-link hover:text-[#ad0b0e] transition pb-1">
+          Explore
+        </a>
+        <a href="#" onclick="event.preventDefault(); navigateTo('appointments')" class="nav-link hover:text-[#ad0b0e] transition pb-1">
+          My Appointments
+        </a>
+        <a href="#" onclick="event.preventDefault(); navigateTo('saved')" class="nav-link hover:text-[#ad0b0e] transition pb-1">
+          Saved
+        </a>
+      </nav>
+
+      <!-- Right: Notification Bell & Profile Avatar -->
+      <div class="flex items-center gap-3 relative">
+        <button onclick="alert('No new notifications')" class="p-2 text-slate-600 hover:text-[#ad0b0e] hover:bg-slate-50 rounded-full transition" title="Notifications">
+          <i data-lucide="bell" class="w-5 h-5"></i>
+        </button>
+
+        <button onclick="toggleProfileDropdown()" class="flex items-center gap-2 p-1 rounded-full hover:bg-slate-100 transition cursor-pointer">
+          <div class="w-9 h-9 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xs">
+            VP
+          </div>
+        </button>
+
+        <!-- Profile Dropdown -->
+        <div id="userProfileDropdown" class="hidden absolute right-0 top-12 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl p-4 z-50 text-xs">
+          <div class="flex items-center gap-3 pb-3 border-b border-slate-100 mb-3">
+            <div class="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-sm">
+              VP
+            </div>
+            <div>
+              <strong class="text-slate-900 font-bold block text-sm">Vaishnavi Panthi</strong>
+              <small class="text-slate-500 font-medium">ID: SAINO-45872</small>
+            </div>
+          </div>
+          <div class="space-y-1">
+            <a href="#" onclick="event.preventDefault(); navigateTo('appointments'); toggleProfileDropdown();" class="flex items-center gap-2.5 p-2 rounded-lg text-slate-700 hover:bg-slate-50 font-semibold">
+              <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i> My Appointments
+            </a>
+            <a href="#" onclick="event.preventDefault(); navigateTo('saved'); toggleProfileDropdown();" class="flex items-center gap-2.5 p-2 rounded-lg text-slate-700 hover:bg-slate-50 font-semibold">
+              <i data-lucide="heart" class="w-4 h-4 text-slate-400"></i> Saved Providers
+            </a>
+            <div class="border-t border-slate-100 pt-1 mt-1">
+              <a href="#" onclick="alert('Logged out');" class="flex items-center gap-2.5 p-2 rounded-lg text-red-600 hover:bg-red-50 font-bold">
+                <i data-lucide="log-out" class="w-4 h-4 text-red-600"></i> Logout
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </header>
+  <!-- ================= MAIN REVIEW CONTENT ================= -->
+  <main class="container flex-1">
+
+    <div class="page-title">
+      <h1>Provider Registration</h1>
+      <h2>Check & Submit</h2>
+      <p>Review all the information you provided before submitting your healthcare provider registration.</p>
+    </div>
+
+    <!-- STEPS -->
+    <div class="steps" id="registrationSteps">
+      <div class="step">
+        <div class="step-number">✓</div>
+        Organization Details
+      </div>
+
+      <div class="step">
+        <div class="step-number">✓</div>
+        Choose Plan
+      </div>
+
+      <div class="step" id="legalStep">
+        <div class="step-number">✓</div>
+        Legal Agreement & Documents
+      </div>
+
+      <div class="step" id="bankStep">
+        <div class="step-number">✓</div>
+        Bank Details
+      </div>
+
+      <div class="step active" id="checkSubmitStep">
+        <div class="step-number" id="checkSubmitNumber">5</div>
+        Check & Submit
+      </div>
+    </div>
+
+    <!-- REVIEW CARD -->
+    <section class="review-card">
+      <div class="review-header">
+        <h3>Registration Summary</h3>
+        <p>Please check that all information is correct.</p>
+      </div>
+
+      <!-- PROVIDER DETAILS -->
+      <div class="review-section">
+        <div class="section-title">
+          <h3>Provider Details</h3>
+          <button class="edit-btn" onclick="editProvider()">Edit</button>
+        </div>
+
+        <div class="details-grid">
+          <div class="detail">
+            <div class="detail-label">Organization Name</div>
+            <div class="detail-value" id="providerName">Not provided</div>
+          </div>
+
+          <div class="detail">
+            <div class="detail-label">Organization Type</div>
+            <div class="detail-value" id="providerType">Not provided</div>
+          </div>
+
+          <div class="detail">
+            <div class="detail-label">Healthcare Company Registration No.</div>
+            <div class="detail-value" id="registrationNoDisplay">Not provided</div>
+          </div>
+
+          <div class="detail">
+            <div class="detail-label">Organization VATPAN</div>
+            <div class="detail-value" id="vatpanDisplay">Not provided</div>
+          </div>
+
+          <div class="detail">
+            <div class="detail-label">Address</div>
+            <div class="detail-value" id="addressDisplay">Not provided</div>
+          </div>
+
+          <div class="detail">
+            <div class="detail-label">Contact Person</div>
+            <div class="detail-value" id="contactFullNameDisplay">Not provided</div>
+          </div>
+
+          <div class="detail">
+            <div class="detail-label">Email</div>
+            <div class="detail-value" id="email">Not provided</div>
+          </div>
+
+          <div class="detail">
+            <div class="detail-label">Phone Number</div>
+            <div class="detail-value" id="phone">Not provided</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SELECTED PLAN -->
+      <div class="review-section">
+        <div class="section-title">
+          <h3>Selected Plan</h3>
+          <button class="edit-btn" onclick="editPlan()">Edit</button>
+        </div>
+
+        <div class="details-grid">
+          <div class="detail">
+            <div class="detail-label">Plan</div>
+            <div class="detail-value" id="planName">Not Selected</div>
+          </div>
+
+          <div class="detail">
+            <div class="detail-label">Payment</div>
+            <div class="detail-value" id="planPrice">Not selected</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAYMENT DETAILS -->
+      <div class="review-section" id="paymentDetailsSection">
+        <div class="section-title">
+          <h3>Payment Details</h3>
+          <button class="edit-btn" onclick="editBank()">Edit</button>
+        </div>
+
+        <!-- BANK PAYMENT -->
+        <div id="bankPaymentDetails">
+          <div class="details-grid">
+            <div class="detail">
+              <div class="detail-label">Payment Method</div>
+              <div class="detail-value">Bank Account</div>
+            </div>
+
+            <div class="detail">
+              <div class="detail-label">Account Holder Name</div>
+              <div class="detail-value" id="accountHolder">Not provided</div>
+            </div>
+
+            <div class="detail">
+              <div class="detail-label">Account Number</div>
+              <div class="detail-value" id="accountNumber">Not provided</div>
+            </div>
+
+            <div class="detail">
+              <div class="detail-label">Bank Name</div>
+              <div class="detail-value" id="bankName">Not provided</div>
+            </div>
+
+            <div class="detail">
+              <div class="detail-label">Branch Name</div>
+              <div class="detail-value" id="branchName">Not provided</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CARD PAYMENT -->
+        <div id="cardPaymentDetails" style="display:none;">
+          <div class="details-grid">
+            <div class="detail">
+              <div class="detail-label">Payment Method</div>
+              <div class="detail-value">Card Payment</div>
+            </div>
+
+            <div class="detail">
+              <div class="detail-label">Card Holder</div>
+              <div class="detail-value" id="cardHolder">Not provided</div>
+            </div>
+
+            <div class="detail">
+              <div class="detail-label">Card Number</div>
+              <div class="detail-value" id="cardNumber">Not provided</div>
+            </div>
+
+            <div class="detail">
+              <div class="detail-label">Expiry Date</div>
+              <div class="detail-value" id="expiryDate">Not provided</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- DIGITAL PAYMENT -->
+        <div id="digitalPaymentDetails" style="display:none;">
+          <div class="details-grid">
+            <div class="detail">
+              <div class="detail-label">Payment Method</div>
+              <div class="detail-value">Digital Payment</div>
+            </div>
+
+            <div class="detail">
+              <div class="detail-label">Digital Service</div>
+              <div class="detail-value" id="digitalMethod">Not provided</div>
+            </div>
+
+            <div class="detail">
+              <div class="detail-label">Account / Phone</div>
+              <div class="detail-value" id="digitalAccount">Not provided</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DOCUMENTS -->
+      <div class="review-section" id="documentsSection">
+        <div class="section-title">
+          <h3>Uploaded Documents</h3>
+          <button class="edit-btn" onclick="editDocuments()">Edit</button>
+        </div>
+
+        <div id="documentsList">
+          <div class="document-row">
+            <span class="document-name">Loading uploaded documents...</span>
+            <span class="document-status">...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- LEGAL AGREEMENT -->
+      <div class="review-section" id="legalAgreementSection">
+        <div class="section-title">
+          <h3>Legal Agreements</h3>
+        </div>
+
+        <div class="agreement-summary">
+          <div class="check-icon">✓</div>
+          <div>
+            <strong>All agreements accepted</strong>
+            <p>You have accepted all required SAINO terms and conditions.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FINAL CONFIRMATION -->
+    <div class="final-confirmation">
+      <label>
+        <input type="checkbox" id="finalConfirm">
+        <span>
+          I confirm that all the information provided above is correct and complete. I understand that submitting this registration will send my application to SAINO for verification and approval.
+        </span>
+      </label>
+    </div>
+
+    <!-- BUTTONS -->
+    <div class="submit-area">
+      <button class="back-btn" onclick="goBack()">← Back</button>
+      <button class="submit-btn" onclick="submitRegistration()">Submit Registration →</button>
+    </div>
+  </main>
+<!-- ================= FOOTER (FB, INSTA, LINKEDIN, GMAIL & ABOUT/CONTACT) ================= -->
+  <footer class="w-full bg-[#17233c] text-slate-300 pt-16 pb-12 border-t border-slate-800 text-xs mt-16">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6">
+      
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-8 mb-12">
+        
+        <!-- Col 1: Brand Info & Social Icons -->
+        <div class="md:col-span-4 space-y-3 text-left">
+          <div class="flex items-center gap-3">
+            <img src="assets/logo.png" onerror="this.onerror=null; this.src='../assets/logo.png';" alt="SAINO HEALTH" class="h-16 sm:h-20 w-auto object-contain brightness-0 invert">
+            <strong class="text-white font-extrabold text-base tracking-tight">SAINO HEALTH</strong>
+          </div>
+          <p class="text-slate-400 text-xs leading-relaxed max-w-sm">
+            Nepal's premier connected healthcare marketplace. Search, discover, compare and book healthcare you can trust across Kathmandu, Lalitpur, Pokhara and nationwide.
+          </p>
+          
+          <!-- Social Icons: Facebook, Instagram, LinkedIn, Gmail -->
+          <div class="pt-2 flex items-center gap-3 text-slate-300">
+            <a href="https://facebook.com" target="_blank" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-[#ad0b0e] hover:text-white flex items-center justify-center transition font-bold" title="Facebook">f</a>
+            <a href="https://instagram.com" target="_blank" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-[#ad0b0e] hover:text-white flex items-center justify-center transition font-bold" title="Instagram">ig</a>
+            <a href="https://linkedin.com" target="_blank" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-[#ad0b0e] hover:text-white flex items-center justify-center transition font-bold" title="LinkedIn">in</a>
+            <a href="mailto:support@sainohealth.com" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-[#ad0b0e] hover:text-white flex items-center justify-center transition font-bold text-xs" title="Gmail">✉</a>
+          </div>
+        </div>
+
+        <!-- Col 2: Services -->
+        <div class="md:col-span-3 space-y-2 text-left">
+          <h4 class="text-white font-bold text-sm mb-3">Healthcare Services</h4>
+          <ul class="space-y-1.5 text-slate-400 font-medium">
+            <li><a href="#" onclick="filterCategory('hospital')" class="hover:text-white transition">Hospitals</a></li>
+            <li><a href="#" onclick="filterCategory('clinic')" class="hover:text-white transition">Doctor Clinics</a></li>
+            <li><a href="#" onclick="filterCategory('diagnostic')" class="hover:text-white transition">Diagnostic Labs</a></li>
+            <li><a href="#" onclick="filterCategory('bloodbank')" class="hover:text-white transition">Blood Banks</a></li>
+            <li><a href="#" onclick="filterCategory('ambulance')" class="hover:text-white transition">Ambulance Services</a></li>
+          </ul>
+        </div>
+
+        <!-- Col 3: Company (About Us & Contact Us only here!) -->
+        <div class="md:col-span-2 space-y-2 text-left">
+          <h4 class="text-white font-bold text-sm mb-3">Company</h4>
+          <ul class="space-y-1.5 text-slate-400 font-medium">
+            <li><a href="#" onclick="event.preventDefault(); navigateTo('about')" class="hover:text-[#ad0b0e] font-bold text-white transition">About Us</a></li>
+            <li><a href="#" onclick="event.preventDefault(); navigateTo('contact')" class="hover:text-[#ad0b0e] font-bold text-white transition">Contact Us</a></li>
+            <li><a href="#" onclick="event.preventDefault(); navigateTo('faqs')" class="hover:text-white transition">FAQs</a></li>
+            <li><a href="#" class="hover:text-white transition">Privacy Policy</a></li>
+            <li><a href="#" class="hover:text-white transition">Terms of Service</a></li>
+          </ul>
+        </div>
+
+        <!-- Col 4: List Your Care -->
+        <div class="md:col-span-3 space-y-2 text-left">
+          <h4 class="text-white font-bold text-sm mb-3">For Healthcare Providers</h4>
+          <p class="text-slate-400 text-xs">Are you running a hospital, clinic or diagnostic center?</p>
+          <div class="pt-2">
+            <a href="list_your _care/list-your-care.html" class="inline-block px-4 py-2 bg-[#ad0b0e] hover:bg-[#8f080b] text-white font-bold rounded-xl transition text-xs shadow-md">
+              List Your Care Facility →
+            </a>
+          </div>
+          <div class="pt-2">
+            <a href="../provider/login.html" class="text-slate-400 hover:text-white underline">Provider Login</a>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="border-t border-slate-800 pt-6 flex flex-col sm:flex-row items-center justify-between text-slate-500 text-[11px]">
+        <span>© 2026 SAINO Health. All rights reserved. Saino Tech Ventures Pvt. Ltd.</span>
+        <span>Made with care for Nepal</span>
+      </div>
+
+    </div>
+  </footer>
+  <!-- ================= SCRIPTS ================= -->
+  <script>
+    lucide.createIcons();
+
+    window.onload = function () {
+      const providerName = localStorage.getItem("providerName");
+      const providerType = localStorage.getItem("providerType");
+      const email = localStorage.getItem("email");
+      const phone = localStorage.getItem("phone");
+      const registrationNo = localStorage.getItem("registrationNo");
+      const vatpan = localStorage.getItem("vatpan");
+      const address = localStorage.getItem("address");
+      const contactFullName = localStorage.getItem("contactFullName");
+
+      if (providerName) document.getElementById("providerName").textContent = providerName;
+      if (providerType) document.getElementById("providerType").textContent = providerType;
+      if (email) document.getElementById("email").textContent = email;
+      if (phone) document.getElementById("phone").textContent = phone;
+      if (registrationNo) document.getElementById("registrationNoDisplay").textContent = registrationNo;
+      if (vatpan) document.getElementById("vatpanDisplay").textContent = vatpan;
+      if (address) document.getElementById("addressDisplay").textContent = address;
+      if (contactFullName) document.getElementById("contactFullNameDisplay").textContent = contactFullName;
+
+      const selectedPlan = localStorage.getItem("selectedPlanName");
+      const selectedPlanPrice = localStorage.getItem("selectedPlanPrice");
+      const planNameElement = document.getElementById("planName");
+      const planPriceElement = document.getElementById("planPrice");
+
+      if (selectedPlan) {
+        if (planNameElement) planNameElement.textContent = selectedPlan;
+        if (planPriceElement) {
+          if (selectedPlan === "Saino Free") {
+            planPriceElement.textContent = "NPR 0 / month";
+          } else if (selectedPlanPrice) {
+            planPriceElement.textContent = selectedPlanPrice;
+          } else {
+            planPriceElement.textContent = "Not selected";
+          }
+        }
+      }
+
+      const paymentMethod = localStorage.getItem("paymentMethod");
+      if (paymentMethod === "bank") {
+        document.getElementById("bankPaymentDetails").style.display = "block";
+        document.getElementById("cardPaymentDetails").style.display = "none";
+        document.getElementById("digitalPaymentDetails").style.display = "none";
+
+        const accountHolder = localStorage.getItem("accountHolder");
+        const accountNumber = localStorage.getItem("accountNumber");
+        const bankName = localStorage.getItem("bankName");
+        const branchName = localStorage.getItem("branchName");
+
+        if (accountHolder) document.getElementById("accountHolder").textContent = accountHolder;
+        if (accountNumber) document.getElementById("accountNumber").textContent = accountNumber;
+        if (bankName) document.getElementById("bankName").textContent = bankName;
+        if (branchName) document.getElementById("branchName").textContent = branchName;
+      } else if (paymentMethod === "card") {
+        document.getElementById("bankPaymentDetails").style.display = "none";
+        document.getElementById("cardPaymentDetails").style.display = "block";
+        document.getElementById("digitalPaymentDetails").style.display = "none";
+
+        const cardHolder = localStorage.getItem("cardHolder");
+        const cardNumber = localStorage.getItem("cardNumber");
+        const expiryDate = localStorage.getItem("expiryDate");
+
+        if (cardHolder) document.getElementById("cardHolder").textContent = cardHolder;
+        if (cardNumber) document.getElementById("cardNumber").textContent = cardNumber;
+        if (expiryDate) document.getElementById("expiryDate").textContent = expiryDate;
+      } else if (paymentMethod === "digital") {
+        document.getElementById("bankPaymentDetails").style.display = "none";
+        document.getElementById("cardPaymentDetails").style.display = "none";
+        document.getElementById("digitalPaymentDetails").style.display = "block";
+
+        const digitalMethod = localStorage.getItem("digitalMethod");
+        const digitalAccount = localStorage.getItem("digitalAccount");
+
+        if (digitalMethod) {
+          document.getElementById("digitalMethod").textContent = digitalMethod.charAt(0).toUpperCase() + digitalMethod.slice(1);
+        }
+        if (digitalAccount) document.getElementById("digitalAccount").textContent = digitalAccount;
+      }
+
+      const uploadedDocuments = JSON.parse(localStorage.getItem("uploadedDocuments") || "[]");
+      const documentsList = document.getElementById("documentsList");
+
+      if (documentsList) {
+        if (uploadedDocuments.length > 0) {
+          documentsList.innerHTML = "";
+          uploadedDocuments.forEach(function (fileName) {
+            documentsList.innerHTML += `
+              <div class="document-row">
+                <span class="document-name">${fileName}</span>
+                <span class="document-status">✓ Uploaded</span>
+              </div>
+            `;
+          });
+        } else {
+          documentsList.innerHTML = `
+            <div class="document-row">
+              <span class="document-name">No documents uploaded</span>
+              <span class="document-status">—</span>
+            </div>
+          `;
+        }
+      }
+
+      if (selectedPlan === "Saino Free") {
+        const bankStep = document.getElementById("bankStep");
+        if (bankStep) bankStep.style.display = "none";
+
+        const legalStep = document.getElementById("legalStep");
+        if (legalStep) legalStep.style.display = "none";
+
+        const paymentSection = document.getElementById("paymentDetailsSection");
+        if (paymentSection) paymentSection.style.display = "none";
+
+        const documentsSection = document.getElementById("documentsSection");
+        if (documentsSection) documentsSection.style.display = "none";
+
+        const legalAgreementSection = document.getElementById("legalAgreementSection");
+        if (legalAgreementSection) legalAgreementSection.style.display = "none";
+
+        const checkSubmitNumber = document.getElementById("checkSubmitNumber");
+        if (checkSubmitNumber) checkSubmitNumber.textContent = "3";
+      }
+    };
+    async function submitRegistration() {
+      if (window.__sainoRetryVerify) return window.__sainoRetryVerify();
+      if (window.__sainoPendingCheckout) return window.__sainoPendingCheckout.open();
+      const confirmation = document.getElementById("finalConfirm");
+      if (!confirmation || !confirmation.checked) {
+        alert("Please confirm that all the information is correct.");
+        return;
+      }
+
+      const selectedPlan = localStorage.getItem("selectedPlanName");
+      if (!selectedPlan) {
+        alert("Please select a plan before submitting.");
+        return;
+      }
+
+      const submitBtn = document.querySelector(".submit-btn");
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerText = "Submitting...";
+      }
+
+      // 1. Data pack karein
+      const payload = {
+        name: localStorage.getItem("providerName") || "Unnamed Facility",
+        type: localStorage.getItem("providerType") || localStorage.getItem("sainoOrganizationType") || "Hospital",
+        email: localStorage.getItem("email") || "",
+        phone: localStorage.getItem("phone") || "",
+        registration_no: localStorage.getItem("registrationNo") || "",
+        vatpan: localStorage.getItem("vatpan") || "",
+        address: localStorage.getItem("address") || "",
+        city: "Kathmandu",
+        contact_person: localStorage.getItem("contactFullName") || "",
+        password: sessionStorage.getItem("providerSignupPassword") || localStorage.getItem("savedProviderPassword") || "",
+        plan: selectedPlan
+      };
+
+      if (!payload.password) {
+        alert("Your signup password is missing. Please go back to Organization Details and enter it again.");
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.innerText = "Submit Registration"; }
+        return;
+      }
+
+      // 2. Real Backend Endpoint call
+      try {
+        const host = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+        const apiBase = host ? "http://localhost:4000/api/provider" : "https://saino-backend-td51.onrender.com/api/provider";
+        const response = await fetch(apiBase + "/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        if (data.success && data.payment_required) {
+          if (!data.payment || !data.payment.key_id || !data.payment.order_id) {
+            alert('The registration was saved but payment checkout details are missing. Please contact SAINO support before retrying.');
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.innerText = 'Retry Payment'; }
+            return;
+          }
+          localStorage.setItem('currentProviderId', data.provider.id);
+          const checkoutScript = document.createElement('script');
+          checkoutScript.src = 'https://checkout.razorpay.com/v1/checkout.js';
+          checkoutScript.onload = () => {
+            const checkout = new Razorpay({
+              key: data.payment.key_id,
+              order_id: data.payment.order_id,
+              amount: data.payment.amount,
+              currency: data.payment.currency,
+              name: 'SAINO HEALTH',
+              description: `${data.provider.plan} provider registration`,
+              prefill: { name: payload.contact_person, email: payload.email, contact: payload.phone },
+              theme: { color: '#ad0b0e' },
+              handler: async payment => {
+                window.__sainoRetryVerify = async () => {
+                try {
+                  const verifyResponse = await fetch(apiBase + '/payment/verify', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ provider_id: data.provider.id, razorpay_order_id: payment.razorpay_order_id,
+                      razorpay_payment_id: payment.razorpay_payment_id, razorpay_signature: payment.razorpay_signature })
+                  });
+                  const verification = await verifyResponse.json();
+                  if (!verifyResponse.ok || !verification.success) throw new Error(verification.error || 'Payment verification failed.');
+                  localStorage.setItem('savedProviderEmail', payload.email.toLowerCase());
+                  localStorage.setItem('currentProviderPlan', data.provider.plan || selectedPlan);
+                  window.__sainoRetryVerify = null;
+                  window.__sainoPendingCheckout = null;
+                  sessionStorage.removeItem('providerSignupPassword');
+                  sessionStorage.removeItem('providerSignupConfirmPassword');
+                  localStorage.removeItem('savedProviderPassword');
+                  window.location.href = '../provider/login.html?registered=1&payment=verified';
+                } catch (error) {
+                  alert(error.message + ' Keep your Razorpay payment ID and contact SAINO support.');
+                  if (submitBtn) { submitBtn.disabled = false; submitBtn.innerText = 'Payment received — retry verification'; }
+                }
+                };
+                return window.__sainoRetryVerify();
+              },
+              modal: { ondismiss: () => { if (submitBtn) { submitBtn.disabled = false; submitBtn.innerText = 'Retry Payment'; } } }
+            });
+            window.__sainoPendingCheckout = checkout;
+            checkout.open();
+          };
+          checkoutScript.onerror = () => {
+            alert('Razorpay checkout could not be loaded. Your registration remains unpaid; refresh to retry payment.');
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.innerText = 'Retry Payment'; }
+          };
+          document.head.appendChild(checkoutScript);
+        } else if (data.success) {
+          localStorage.setItem("currentProviderId", data.provider.id);
+          if (payload.email) {
+            localStorage.setItem("savedProviderEmail", payload.email.toLowerCase());
+            localStorage.setItem("email", payload.email.toLowerCase());
+          }
+          localStorage.setItem("currentProviderPlan", data.provider.plan || selectedPlan);
+          // Password is now bcrypt-hashed by the backend; remove the temporary signup copy.
+          sessionStorage.removeItem("providerSignupPassword");
+          sessionStorage.removeItem("providerSignupConfirmPassword");
+          localStorage.removeItem("savedProviderPassword");
+          // The account stays inactive until Super Admin approves dashboard access.
+          window.location.href = "../provider/login.html?registered=1&approval=pending";
+        } else {
+          alert("Submission error: " + (data.error || "Server issue"));
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerText = "Submit Registration";
+          }
+        }
+      } catch (error) {
+        console.error("API Error:", error);
+        alert("SAINO backend is not accessible. Please ensure the backend server is running on port 4000 and /api/health shows the database as connected.");
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerText = "Submit Registration";
+        }
+      }
+    }
+
+    function goBack() {
+      const selectedPlan = localStorage.getItem("selectedPlanName");
+      if (selectedPlan === "Saino Free") {
+        window.location.href = "provider-details.html";
+      } else {
+        window.location.href = "bank-details.html";
+      }
+    }
+
+    function editProvider() {
+      window.location.href = "organization-details.html";
+    }
+
+    function editPlan() {
+      window.location.href = "provider-details.html";
+    }
+
+    function editBank() {
+      window.location.href = "bank-details.html";
+    }
+
+    function editDocuments() {
+      window.location.href = "legal-agreement.html";
+    }
+  </script>
+</body>
+</html>

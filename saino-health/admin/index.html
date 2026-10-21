@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>SAINO Super Admin</title>
+
+    <link rel="stylesheet" href="css/admin.css">
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+
+<body>
+
+<div class="admin-layout">
+
+    <!-- ================= SIDEBAR ================= -->
+
+    <aside class="sidebar" id="sidebar">
+
+        <div class="brand">
+            <img class="brand-logo" src="../assets/logo.png" alt="SAINO Health logo">
+
+            <div>
+                <h2>SAINO</h2>
+                <span>SUPER ADMIN</span>
+            </div>
+        </div>
+
+        <div class="sidebar-scroll">
+
+            <!-- 1. SUPER ADMIN -->
+            <div class="nav-section">
+                <p class="nav-title">SUPER ADMIN</p>
+
+                <a class="nav-item active" href="#" data-page="dashboard">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>Executive Dashboard</span>
+                </a>
+
+                <a class="nav-item" href="#" data-page="live-operations">
+                    <i data-lucide="activity"></i>
+                    <span>Live Operations</span>
+                </a>
+
+                <a class="nav-item" href="#" data-page="analytics">
+                    <i data-lucide="chart-no-axes-combined"></i>
+                    <span>Analytics & Reports</span>
+                </a>
+            </div>
+
+            <!-- 2. PLATFORM MANAGEMENT -->
+            <div class="nav-section">
+                <p class="nav-title">PLATFORM MANAGEMENT</p>
+
+                <a class="nav-item" href="#" data-page="providers">
+                    <i data-lucide="building-2"></i>
+                    <span>Providers</span>
+                    <b class="nav-count">Live</b>
+                </a>
+
+                <a class="nav-item" href="#" data-page="verification">
+                    <i data-lucide="badge-check"></i>
+                    <span>Verification & Setup</span>
+                    <b class="nav-count warning">Queue</b>
+                </a>
+
+                <a class="nav-item" href="#" data-page="users">
+                    <i data-lucide="users"></i>
+                    <span>Patient & User</span>
+                </a>
+
+                <a class="nav-item" href="#" data-page="appointments">
+                    <i data-lucide="calendar-days"></i>
+                    <span>Bookings & Appointments</span>
+                </a>
+
+                <a class="nav-item" href="#" data-page="live-queue">
+                    <i data-lucide="list-ordered"></i>
+                    <span>Live Queue & Tokens</span>
+                </a>
+
+                <a class="nav-item" href="#" data-page="telemedicine">
+                    <i data-lucide="video"></i>
+                    <span>Telemedicine</span>
+                </a>
+
+                <a class="nav-item" href="#" data-page="marketplace">
+                    <i data-lucide="store"></i>
+                    <span>Patient Discovery Marketplace</span>
+                </a>
+
+                <a class="nav-item" href="#" data-page="qr-management">
+                    <i data-lucide="qr-code"></i>
+                    <span>QR Management</span>
+                </a>
+            </div>
+
+            <!-- 3. BUSINESS & FINANCE -->
+            <div class="nav-section">
+                <p class="nav-title">BUSINESS & FINANCE</p>
+
+                <a class="nav-item" href="#" data-page="payments">
+                    <i data-lucide="credit-card"></i>
+                    <span>Payment & Settlements</span>
+                </a>
+
+                <a class="nav-item" href="#" data-page="plans">
+                    <i data-lucide="badge-percent"></i>
+                    <span>Plans & Subscriptions</span>
+                </a>
+
+                <a class="nav-item" href="#" data-page="disputes">
+                    <i data-lucide="message-square-warning"></i>
+                    <span>Support & Disputes</span>
+                </a>
+            </div>
+
+            <!-- 4. CONTROL & SECURITY -->
+            <div class="nav-section">
+                <p class="nav-title">CONTROL & SECURITY</p>
+
+                <a class="nav-item" href="#" data-page="roles">
+                    <i data-lucide="user-cog"></i>
+                    <span>Roles & Permissions</span>
+                </a>
+
+                <a class="nav-item" href="#" data-page="audit">
+                    <i data-lucide="history"></i>
+                    <span>Audit Logs</span>
+                </a>
+
+                <a class="nav-item" href="#" data-page="notifications">
+                    <i data-lucide="bell"></i>
+                    <span>Notifications</span>
+                </a>
+
+                <a class="nav-item" href="#" data-page="system-health">
+                    <i data-lucide="shield-check"></i>
+                    <span>System Health</span>
+                </a>
+
+                <a class="nav-item" href="#" data-page="settings">
+                    <i data-lucide="settings"></i>
+                    <span>Global Settings</span>
+                </a>
+            </div>
+
+        </div>
+
+        <div class="sidebar-footer">
+
+            <div class="system-status">
+                <span class="status-dot"></span>
+
+                <div>
+                    <strong>System Operational</strong>
+                    <small>PostgreSQL Live</small>
+                </div>
+            </div>
+
+        </div>
+
+    </aside>
+
+
+    <!-- ================= MAIN ================= -->
+
+    <main class="main-content">
+
+        <!-- TOPBAR -->
+
+        <header class="topbar">
+
+            <div class="topbar-left">
+
+                <button class="icon-button mobile-menu" id="menuBtn">
+                    <i data-lucide="menu"></i>
+                </button>
+
+                <div>
+                    <p class="breadcrumb">SAINO / <span id="breadcrumbPage">Executive Dashboard</span></p>
+                    <h1 id="pageTitle">Executive Dashboard</h1>
+                </div>
+
+            </div>
+
+
+            <div class="topbar-right">
+
+                <button class="icon-button" title="Emergency Control">
+                    <i data-lucide="siren"></i>
+                </button>
+
+                <button class="icon-button notification-button">
+                    <i data-lucide="bell"></i>
+                    <span class="notification-dot"></span>
+                </button>
+
+                <div class="admin-profile">
+
+                    <div class="admin-avatar">SA</div>
+
+                    <div class="admin-info">
+                        <strong>Super Admin</strong>
+                        <span>Platform Administrator</span>
+                    </div>
+
+                    <i data-lucide="chevron-down"></i>
+
+                </div>
+
+            </div>
+
+        </header>
+
+
+        <!-- PAGE CONTENT -->
+
+        <section class="page-content" id="pageContent">
+
+            <!-- DASHBOARD -->
+
+            <div id="dashboardPage" class="page active-page">
+
+                <div class="page-intro">
+
+                    <div>
+                        <p class="eyebrow">MARKETPLACE OVERVIEW</p>
+                        <h2>Good evening, Admin.</h2>
+                        <p class="muted">
+                            Real-time platform operations and live provider network status.
+                        </p>
+                    </div>
+
+                    <button class="primary-button" onclick="changePage('providers')">
+                        <i data-lucide="plus"></i>
+                        Add Provider
+                    </button>
+
+                </div>
+
+
+                <!-- KPI CARDS -->
+
+                <div class="stats-grid">
+
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i data-lucide="users"></i>
+                        </div>
+
+                        <div class="stat-content">
+                            <span>Total Users</span>
+                            <strong id="totalUsers">--</strong>
+                            <small class="positive">Active Patients</small>
+                        </div>
+                    </div>
+
+
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i data-lucide="building-2"></i>
+                        </div>
+
+                        <div class="stat-content">
+                            <span>Total Providers</span>
+                            <strong id="totalProviders">--</strong>
+                            <small class="positive">Network Facilities</small>
+                        </div>
+                    </div>
+
+
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i data-lucide="badge-check"></i>
+                        </div>
+
+                        <div class="stat-content">
+                            <span>Verified Providers</span>
+                            <strong id="verifiedProviders">--</strong>
+                            <small>Live on Marketplace</small>
+                        </div>
+                    </div>
+
+
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i data-lucide="calendar-check"></i>
+                        </div>
+
+                        <div class="stat-content">
+                            <span>Appointments</span>
+                            <strong id="totalAppointments">--</strong>
+                            <small class="positive">Booked Today</small>
+                        </div>
+                    </div>
+
+
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i data-lucide="star"></i>
+                        </div>
+
+                        <div class="stat-content">
+                            <span>Total Reviews</span>
+                            <strong id="totalReviews">--</strong>
+                            <small>Patient Ratings</small>
+                        </div>
+                    </div>
+
+
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i data-lucide="megaphone"></i>
+                        </div>
+
+                        <div class="stat-content">
+                            <span>Active Campaigns</span>
+                            <strong id="activeCampaigns">--</strong>
+                            <small>Live Promotions</small>
+                        </div>
+                    </div>
+
+                </div>
+
+
+                <!-- QUICK ACTIONS -->
+
+                <div class="section-heading">
+
+                    <div>
+                        <h3>Quick Actions</h3>
+                        <p>Frequently used administration tools.</p>
+                    </div>
+
+                </div>
+
+                <div class="quick-actions">
+
+                    <button class="quick-action" data-page="providers">
+                        <span class="quick-icon red">
+                            <i data-lucide="building-2"></i>
+                        </span>
+                        <span>
+                            <strong>Providers Directory</strong>
+                            <small>Manage hospital listings</small>
+                        </span>
+                    </button>
+
+
+                    <button class="quick-action" data-page="verification">
+                        <span class="quick-icon amber">
+                            <i data-lucide="shield-check"></i>
+                        </span>
+                        <span>
+                            <strong>Verification Queue</strong>
+                            <small>Pending setups & review</small>
+                        </span>
+                    </button>
+
+
+                    <button class="quick-action" data-page="live-queue">
+                        <span class="quick-icon purple">
+                            <i data-lucide="list-ordered"></i>
+                        </span>
+                        <span>
+                            <strong>Live Queue & Tokens</strong>
+                            <small>Real-time OPD rush</small>
+                        </span>
+                    </button>
+
+
+                    <button class="quick-action" data-page="payments">
+                        <span class="quick-icon blue">
+                            <i data-lucide="credit-card"></i>
+                        </span>
+                        <span>
+                            <strong>Payment & Settlements</strong>
+                            <small>Hospital subscriptions</small>
+                        </span>
+                    </button>
+
+                </div>
+
+
+                <!-- LOWER GRID -->
+
+                <div class="dashboard-grid">
+
+                    <!-- ACTIVITY -->
+
+                    <div class="panel">
+
+                        <div class="panel-header">
+
+                            <div>
+                                <h3>Recent Activity</h3>
+                                <p>Latest actions across the marketplace.</p>
+                            </div>
+
+                            <button class="text-button" onclick="changePage('audit')">View All</button>
+
+                        </div>
+
+
+                        <div class="activity-list" id="activityList">
+                        </div>
+
+                    </div>
+
+
+                    <!-- VERIFICATION -->
+
+                    <div class="panel">
+
+                        <div class="panel-header">
+
+                            <div>
+                                <h3>Verification & Setup Queue</h3>
+                                <p>Hospitals awaiting setup & approval.</p>
+                            </div>
+
+                            <button class="text-button" data-page="verification">
+                                View Queue
+                            </button>
+
+                        </div>
+
+
+                        <div class="mini-list" id="verificationList">
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- MARKETPLACE HEALTH -->
+
+                <div class="panel marketplace-health">
+
+                    <div class="panel-header">
+
+                        <div>
+                            <h3>Platform Health & Operations</h3>
+                            <p>Real-time system telemetry.</p>
+                        </div>
+
+                        <span class="live-badge">
+                            <span></span> Live
+                        </span>
+
+                    </div>
+
+
+                    <div class="health-grid">
+
+                        <div class="health-item">
+                            <span>Search → Profile</span>
+                            <strong>38.6%</strong>
+                            <div class="progress">
+                                <i style="width:38.6%"></i>
+                            </div>
+                        </div>
+
+                        <div class="health-item">
+                            <span>Profile → Booking</span>
+                            <strong>14.8%</strong>
+                            <div class="progress">
+                                <i style="width:14.8%"></i>
+                            </div>
+                        </div>
+
+                        <div class="health-item">
+                            <span>Provider Verification</span>
+                            <strong>100%</strong>
+                            <div class="progress">
+                                <i style="width:100%"></i>
+                            </div>
+                        </div>
+
+                        <div class="health-item">
+                            <span>PostgreSQL Latency</span>
+                            <strong>&lt; 5ms</strong>
+                            <div class="progress">
+                                <i style="width:95%"></i>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+</div>
+
+<!-- SCRIPTS: Cleaned, connected to Express + PostgreSQL -->
+<script src="js/admin-auth.js"></script>
+<script src="js/providers.js"></script>
+<script src="js/admin-live-modules.js"></script>
+<script src="js/admin.js"></script>
+
+</body>
+</html>

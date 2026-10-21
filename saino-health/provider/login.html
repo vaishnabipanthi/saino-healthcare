@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#102b4d">
+  <title>Provider Login | SAINO Health</title>
+  <style>
+    :root { --navy:#102e52; --red:#ed1c2e; --blue:#1457bb; --ink:#142f52; --muted:#63758d; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; display:grid; place-items:center; padding:24px; background:#f4f6f9; font-family:Inter,Arial,sans-serif; color:var(--ink); }
+    .portal { width:min(1120px,100%); min-height:620px; display:grid; grid-template-columns:1.08fr .92fr; background:white; box-shadow:0 20px 60px rgba(15,38,68,.12); overflow:hidden; }
+    .hero { position:relative; color:white; padding:48px 44px; background:linear-gradient(110deg,rgba(6,31,60,.98) 0%,rgba(9,39,73,.91) 44%,rgba(11,39,71,.2) 100%),url('../assets/doctor3.jpg') center/cover no-repeat; display:flex; flex-direction:column; justify-content:space-between; min-height:620px; }
+    .brand { display:flex; align-items:center; gap:12px; }
+    .brand img { width:174px; max-height:70px; object-fit:contain; object-position:left center; }
+    .brand-fallback { font-size:27px; font-weight:800; letter-spacing:2px; }
+    .brand-fallback span { color:var(--red); }
+    .hero-copy { max-width:380px; margin-top:36px; }
+    .hero h1 { font-size:29px; line-height:1.18; margin:0 0 10px; }
+    .hero p { color:#d3e3f7; line-height:1.55; margin:0; }
+    .perks { display:grid; gap:17px; margin-top:28px; }
+    .perk { display:flex; gap:13px; align-items:center; color:#eef5ff; font-size:13px; }
+    .perk-icon { width:35px; height:35px; flex:0 0 35px; border:1px solid #8aa7c9; border-radius:50%; display:grid; place-items:center; font-size:16px; }
+    .perk small { display:block; color:#bfd1e8; font-size:10px; margin-top:4px; }
+    .tagline { display:flex; gap:12px; align-items:center; font-size:12px; color:#d8e8fb; }
+    .tagline:before { content:""; width:50px; height:1px; background:var(--red); box-shadow:12px -5px 0 -0.2px var(--red); }
+    .form-panel { position:relative; padding:40px clamp(28px,5vw,68px); display:flex; flex-direction:column; justify-content:center; background:linear-gradient(150deg,#fff 65%,#f3f8ff 100%); }
+    .top-link { position:absolute; top:32px; right:34px; font-size:11px; color:var(--muted); }
+    .top-link a, .inline-link { color:var(--blue); text-decoration:none; font-weight:700; }
+    h2 { font-size:27px; letter-spacing:-.5px; margin:24px 0 6px; }
+    .subtitle { margin:0 0 28px; color:#324c70; font-size:14px; }
+    label { display:block; font-size:11px; font-weight:700; margin:0 0 7px; }
+    .field { margin-bottom:20px; }
+    .field-wrap { display:flex; align-items:center; gap:10px; min-height:43px; border:1px solid #c8d5e6; border-radius:6px; padding:0 12px; }
+    .field-wrap:focus-within { border-color:#4d86d8; box-shadow:0 0 0 3px rgba(77,134,216,.1); }
+    .field-wrap .ico { font-size:17px; color:#28496f; }
+    input { width:100%; min-width:0; border:0; outline:0; font:inherit; font-size:12px; color:var(--ink); background:transparent; }
+    input::placeholder { color:#8b9bb1; }
+    .password-toggle { border:0; background:none; color:#496588; cursor:pointer; font-size:16px; padding:4px; }
+    .forgot { display:block; text-align:right; margin-top:-9px; margin-bottom:21px; font-size:11px; color:var(--blue); text-decoration:none; }
+    .primary { width:100%; border:0; background:#0e315d; color:white; border-radius:6px; padding:13px 16px; font-size:12px; font-weight:800; cursor:pointer; }
+    .primary:hover { background:#154578; }
+    .primary:disabled { opacity:.65; cursor:wait; }
+    .notice { display:none; padding:10px 12px; border-radius:6px; font-size:12px; margin:0 0 16px; line-height:1.45; }
+    .notice.show { display:block; }
+    .notice.error { background:#fff0f0; color:#a4161a; border:1px solid #f3c7c8; }
+    .notice.ok { background:#eefaf3; color:#17643a; border:1px solid #bfe5cc; }
+    .support { text-align:center; font-size:11px; color:var(--muted); margin-top:27px; }
+    .legal { font-size:10px; color:#6c7d94; margin-top:27px; text-align:center; line-height:1.65; }
+    .pulse { position:absolute; bottom:0; left:0; right:0; height:75px; opacity:.55; pointer-events:none; }
+    @media(max-width:760px) { body { padding:0; background:#fff; } .portal { min-height:100vh; grid-template-columns:1fr; box-shadow:none; } .hero { min-height:240px; padding:24px; background-position:center 35%; } .brand img { width:140px; } .hero-copy { margin:15px 0 0; } .hero h1 { font-size:22px; } .hero-copy p { font-size:12px; } .perks, .tagline { display:none; } .form-panel { padding:35px 26px 48px; min-height:490px; } .top-link { top:20px; right:24px; } h2 { margin-top:22px; } }
+  </style>
+</head>
+<body>
+  <main class="portal">
+    <section class="hero" aria-label="SAINO provider portal">
+      <div class="brand">
+        <img src="../assets/logo.png" alt="SAINO Health" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+        <div class="brand-fallback" style="display:none">SAINO <span>♥</span></div>
+      </div>
+      <div class="hero-copy">
+        <h1>Provider Portal</h1>
+        <p>Manage your patients, operations and growth — all in one place.</p>
+        <div class="perks">
+          <div class="perk"><span class="perk-icon">▦</span><div>Appointments<small>Book · Manage · Track</small></div></div>
+          <div class="perk"><span class="perk-icon">♙</span><div>Patients<small>Records · History · Follow-ups</small></div></div>
+          <div class="perk"><span class="perk-icon">▤</span><div>Services &amp; Packages<small>List · Update · Publish</small></div></div>
+          <div class="perk"><span class="perk-icon">▥</span><div>Analytics<small>Insights · Growth · Performance</small></div></div>
+          <div class="perk"><span class="perk-icon">✓</span><div>Secure &amp; Compliant<small>Your data, our priority</small></div></div>
+        </div>
+      </div>
+      <div class="tagline">Better Care. Together.</div>
+    </section>
+
+    <section class="form-panel">
+      <div class="top-link">New to SAINO Provider? &nbsp; <a href="../list_your%20_care/list-your-care.html">List Your Care</a></div>
+      <h2>Welcome Back</h2>
+      <p class="subtitle">Sign in to your provider account</p>
+      <div id="notice" class="notice" role="status" aria-live="polite"></div>
+      <form id="providerLoginForm">
+        <div class="field">
+          <label for="providerEmail">Email or Username</label>
+          <div class="field-wrap"><span class="ico">✉</span><input id="providerEmail" name="email" type="email" autocomplete="username" placeholder="Enter your registered email" required></div>
+        </div>
+        <div class="field">
+          <label for="providerPassword">Password</label>
+          <div class="field-wrap"><span class="ico">♙</span><input id="providerPassword" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required><button class="password-toggle" type="button" id="togglePassword" aria-label="Show or hide password">◉</button></div>
+        </div>
+        <a class="forgot" href="mailto:support@sainohealthventures.com?subject=Provider%20account%20password%20help">Forgot password?</a>
+        <button class="primary" type="submit" id="loginButton">Login &nbsp; →</button>
+      </form>
+      <div class="legal">By continuing, you agree to our <a class="inline-link" href="../list_your%20_care/legal-agreement.html">Terms of Service</a> and Privacy Policy.</div>
+      <div class="support">Need help? <a class="inline-link" href="mailto:support@sainohealthventures.com">Contact Support</a></div>
+    </section>
+  </main>
+  <script>
+    (() => {
+      const form = document.getElementById('providerLoginForm');
+      const notice = document.getElementById('notice');
+      const button = document.getElementById('loginButton');
+      const emailInput = document.getElementById('providerEmail');
+      const passwordInput = document.getElementById('providerPassword');
+      const localHost = ['localhost', '127.0.0.1'].includes(location.hostname);
+      const API_BASE = localHost ? 'http://localhost:4000/api/provider' : 'https://saino-backend-td51.onrender.com/api/provider';
+
+      const params = new URLSearchParams(location.search);
+      if (params.get('registered') === '1') {
+        showNotice('Your provider registration has been saved. Sign in with the email and password you created.', 'ok');
+        emailInput.value = localStorage.getItem('savedProviderEmail') || localStorage.getItem('email') || '';
+      }
+      if (params.get('expired') === '1') showNotice('Your session expired. Please sign in again.', 'error');
+
+      document.getElementById('togglePassword').addEventListener('click', () => {
+        passwordInput.type = passwordInput.type === 'password' ? 'text' : 'password';
+      });
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const email = emailInput.value.trim().toLowerCase();
+        const password = passwordInput.value;
+        if (!email || !password) return showNotice('Enter your registered email and password.', 'error');
+        button.disabled = true;
+        button.textContent = 'Signing in…';
+        try {
+          const response = await fetch(API_BASE + '/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok || !data.success || !data.token || !data.provider) {
+            showNotice(data.error || 'Login failed. Please check your details and try again.', 'error');
+            return;
+          }
+          localStorage.setItem('SAINO_PROVIDER_TOKEN', data.token);
+          localStorage.setItem('isProviderLoggedIn', 'true');
+          localStorage.setItem('currentProviderEmail', data.user.email);
+          localStorage.setItem('currentProviderId', String(data.provider.id));
+          localStorage.setItem('currentProviderPlan', data.provider.plan || 'Saino Free');
+          window.location.replace('index.html');
+        } catch (error) {
+          showNotice('Unable to reach the backend. Start the SAINO backend on port 4000 and try again.', 'error');
+        } finally {
+          button.disabled = false;
+          button.textContent = 'Login  →';
+        }
+      });
+
+      function showNotice(message, type) {
+        notice.textContent = message;
+        notice.className = 'notice show ' + (type || 'error');
+      }
+    })();
+  </script>
+</body>
+</html>

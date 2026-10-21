@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SAINO HEALTH - Find the Right Healthcare, Faster</title>
+  <meta name="description" content="SAINO Health helps people in India find healthcare providers, compare services, read reviews and book appointments.">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'Inter', 'sans-serif'],
+          },
+          colors: {
+            saino: {
+              red: '#ad0b0e',
+              'red-dark': '#8f080b',
+              'red-light': '#FDE8E9',
+              navy: '#17233c',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <link rel="icon" type="image/png" href="assets/logo.png">
+  <link rel="stylesheet" href="css/custom.css">
+
+  <style>
+    .service-card-img {
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .service-card-img:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 14px 28px rgba(0,0,0,0.07);
+    }
+    .nav-link.active {
+      color: #ad0b0e;
+      border-bottom: 2px solid #ad0b0e;
+      font-weight: 700;
+    }
+  </style>
+</head>
+
+<body class="bg-[#f8fafc] text-slate-800 font-sans antialiased min-h-screen w-full flex flex-col selection:bg-[#ad0b0e] selection:text-white">
+
+  <!-- ================= 1. TOP EMERGENCY RIBBON ================= -->
+  <aside id="topEmergencyRibbon" class="w-full bg-[#ad0b0e] text-white py-1.5 px-4 text-xs font-semibold relative z-50">
+    <div class="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-3 text-[11px] sm:text-xs">
+      <div class="flex items-center gap-2">
+        <i data-lucide="droplet" class="w-3.5 h-3.5 text-white fill-white"></i>
+        <span><strong>24/7 Emergency Blood Bank:</strong> Find nearby blood banks</span>
+      </div>
+
+      <div class="hidden md:flex items-center gap-2">
+        <i data-lucide="truck" class="w-3.5 h-3.5 text-white"></i>
+        <span><strong>Ambulance Call Center:</strong> Quick response • 24/7</span>
+      </div>
+
+      <div class="flex items-center gap-4 ml-auto sm:ml-0">
+        <a href="tel:112" class="flex items-center gap-1.5 hover:underline">
+          <i data-lucide="phone" class="w-3.5 h-3.5 text-white"></i>
+          <span><strong>India Emergency Helpline:</strong> 112</span>
+        </a>
+        <button onclick="document.getElementById('topEmergencyRibbon').style.display='none'" class="text-white/80 hover:text-white" aria-label="Close Ribbon">
+          <i data-lucide="x" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ================= 2. MAIN NAVBAR WITH REAL SAINO LOGO IMAGE ================= -->
+  <header class="w-full bg-white border-b border-slate-200 sticky top-0 z-40 shadow-xs">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 h-18 flex items-center justify-between">
+      
+      <!-- Real SAINO Logo Image -->
+      <a href="#" onclick="event.preventDefault(); navigateTo('marketplace')" class="flex items-center gap-2.5">
+        <img src="assets/logo.png" onerror="this.onerror=null; this.src='../assets/logo.png';" alt="SAINO HEALTH" class="h-16 sm:h-20 md:h-24 w-auto object-contain">
+      </a>
+
+      <!-- Center Nav Links -->
+      <nav class="hidden md:flex items-center gap-7 text-xs sm:text-sm font-semibold text-slate-600">
+        <a href="#" onclick="event.preventDefault(); navigateTo('marketplace')" class="nav-link active pb-1">
+          Home
+        </a>
+        <a href="#" onclick="event.preventDefault(); navigateTo('discovery')" class="nav-link hover:text-[#ad0b0e] transition pb-1">
+          Discover
+        </a>
+        <a href="#" onclick="event.preventDefault(); navigateTo('find-healthcare')" class="nav-link hover:text-[#ad0b0e] transition pb-1">
+          Explore
+        </a>
+        <a href="#" onclick="event.preventDefault(); navigateTo('appointments')" class="nav-link hover:text-[#ad0b0e] transition pb-1">
+          My Appointments
+        </a>
+        <a href="#" onclick="event.preventDefault(); navigateTo('saved')" class="nav-link hover:text-[#ad0b0e] transition pb-1">
+          Saved
+        </a>
+      </nav>
+
+      <!-- Right: Notification Bell & Profile Avatar -->
+      <div class="flex items-center gap-3 relative">
+        <button onclick="alert('No new notifications')" class="p-2 text-slate-600 hover:text-[#ad0b0e] hover:bg-slate-50 rounded-full transition" title="Notifications">
+          <i data-lucide="bell" class="w-5 h-5"></i>
+        </button>
+
+        <button onclick="toggleProfileDropdown()" class="flex items-center gap-2 p-1 rounded-full hover:bg-slate-100 transition cursor-pointer">
+          <div id="patientProfileAvatar" class="w-9 h-9 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xs"><i data-lucide="user-round" class="w-4 h-4"></i></div>
+        </button>
+
+        <!-- Profile Dropdown -->
+        <div id="userProfileDropdown" class="hidden absolute right-0 top-12 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl p-4 z-50 text-xs">
+          <div class="flex items-center gap-3 pb-3 border-b border-slate-100 mb-3">
+            <div id="patientProfileAvatarMenu" class="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-sm">
+              <i data-lucide="user-round" class="w-4 h-4"></i>
+            </div>
+            <div>
+              <strong id="patientProfileTitle" class="text-slate-900 font-bold block text-sm">Welcome to SAINO</strong>
+              <small id="patientProfileSubtitle" class="text-slate-500 font-medium">Sign up or log in to book</small>
+            </div>
+          </div>
+          <div class="space-y-1">
+            <a href="#" onclick="event.preventDefault(); navigateTo('appointments'); toggleProfileDropdown();" class="flex items-center gap-2.5 p-2 rounded-lg text-slate-700 hover:bg-slate-50 font-semibold">
+              <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i> My Appointments
+            </a>
+            <a href="#" onclick="event.preventDefault(); navigateTo('saved'); toggleProfileDropdown();" class="flex items-center gap-2.5 p-2 rounded-lg text-slate-700 hover:bg-slate-50 font-semibold">
+              <i data-lucide="heart" class="w-4 h-4 text-slate-400"></i> Saved Providers
+            </a>
+            <div id="patientAuthLinks" class="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 mt-2">
+              <button onclick="document.getElementById('userProfileDropdown')?.classList.add('hidden'); openPatientOtpModal()" class="rounded-lg bg-red-700 py-2.5 font-bold text-white">Sign up</button>
+              <button onclick="document.getElementById('userProfileDropdown')?.classList.add('hidden'); openPatientOtpModal()" class="rounded-lg border border-slate-200 py-2.5 font-bold text-slate-700">Log in</button>
+            </div>
+            <div class="border-t border-slate-100 pt-1 mt-1">
+              <a id="patientLogoutLink" href="#" onclick="event.preventDefault(); patientSignOut()" class="hidden flex items-center gap-2.5 p-2 rounded-lg text-red-600 hover:bg-red-50 font-bold">
+                <i data-lucide="log-out" class="w-4 h-4 text-red-600"></i> Logout
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ================= 3. HERO BANNER (INCREASED HEIGHT + COMPACT FIXED SEARCH BAR) ================= -->
+  <section id="heroHomeSection" class="pt-6 pb-2 px-4 sm:px-6">
+    <div class="max-w-6xl mx-auto relative">
+      
+      <!-- Banner Container (Height increased to min-h-[460px] md:min-h-[500px]) -->
+      <div id="heroBannerCard" class="relative rounded-3xl overflow-hidden min-h-[240px] md:min-h-[200px] shadow-lg flex flex-col justify-between p-6 sm:p-10 transition-all duration-700"
+           style="background: linear-gradient(135deg, rgba(7, 17, 38, 0.90) 0%, rgba(7, 17, 38, 0.70) 50%, rgba(7, 17, 38, 0.92) 100%), url('https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=1200&q=80') center/cover no-repeat;">
+        
+        <!-- Top Row on Banner: Tag & Slide Indicator Dots + < and > Buttons -->
+        <div class="flex items-center justify-between z-10">
+          <span id="heroBannerTag" class="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-red-600/30 text-rose-300 border border-rose-400/30">
+            EMERGENCY CARE
+          </span>
+
+          <div class="flex items-center gap-2">
+            <!-- Dots -->
+            <div id="heroSlideDots" class="flex items-center gap-1.5 mr-2">
+              <span class="w-5 h-1.5 rounded-full bg-white transition-all"></span>
+              <span class="w-1.5 h-1.5 rounded-full bg-white/40 transition-all"></span>
+              <span class="w-1.5 h-1.5 rounded-full bg-white/40 transition-all"></span>
+            </div>
+
+            <!-- < and > Controls -->
+            <button onclick="prevHeroSlide()" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/30 text-white flex items-center justify-center backdrop-blur-sm transition font-bold" aria-label="Previous Slide">
+              ❮
+            </button>
+            <button onclick="nextHeroSlide()" class="w-8 h-8 rounded-full bg-white/15 hover:bg-white/30 text-white flex items-center justify-center backdrop-blur-sm transition font-bold" aria-label="Next Slide">
+              ❯
+            </button>
+          </div>
+        </div>
+
+        <!-- Middle: Headline & Subtitle -->
+        <div class="my-3 max-w-2xl text-left z-10 space-y-2.5">
+          <h1 id="heroBannerTitle" class="text-2xl sm:text-4xl md:text-5xl font-black text-white leading-tight drop-shadow-md">
+            Blood bank and emergency support
+          </h1>
+          <p id="heroBannerSubtitle" class="text-xs sm:text-sm text-slate-200 max-w-lg leading-relaxed">
+            Search published blood banks, hospitals and emergency services across India.
+          </p>
+        </div>
+
+        <!-- Bottom: COMPACT FIXED SEARCH BAR (Pinned to Banner Bottom) -->
+        <div class="z-20 w-full max-w-2xl mx-auto bg-white border border-slate-200 rounded-xl p-1.5 shadow-2xl flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5">
+          
+          <!-- Location Dropdown -->
+          <div class="flex items-center gap-1.5 px-3 py-1.5 border-b sm:border-b-0 sm:border-r border-slate-200 text-xs font-bold text-slate-700 shrink-0">
+            <i data-lucide="map-pin" class="w-3.5 h-3.5 text-[#ad0b0e]"></i>
+            <select id="heroLocationSelect" class="bg-transparent focus:outline-none cursor-pointer text-xs">
+              <option value="all" selected>All Locations</option>
+              <option value="Delhi">Delhi</option>
+              <option value="Mumbai">Mumbai</option>
+              <option value="Goa">Goa</option>
+              <option value="Bengaluru">Bengaluru / Bangalore</option>
+            </select>
+          </div>
+
+          <!-- Compact Input Box -->
+          <div class="relative flex-1 flex items-center gap-2 px-2.5 py-1">
+            <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400"></i>
+            <input type="text" id="heroSearchInput" placeholder="Search doctor, hospital, service..." autocomplete="off" aria-controls="heroSearchSuggestions" aria-expanded="false" class="w-full text-xs bg-transparent focus:outline-none placeholder-slate-400 text-slate-800">
+            <div id="heroSearchSuggestions" class="hidden absolute left-0 right-0 top-full z-40 mt-2 max-h-80 overflow-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl"></div>
+          </div>
+
+          <!-- Compact Red Search Button -->
+          <button id="heroSearchBtn" class="bg-[#ad0b0e] hover:bg-[#8f080b] text-white px-5 py-2 rounded-lg text-xs font-bold shadow-sm transition shrink-0 flex items-center justify-center gap-1.5">
+            <i data-lucide="search" class="w-3.5 h-3.5"></i>
+            <span>Search</span>
+          </button>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ================= MAIN DYNAMIC CONTENT CONTAINER ================= -->
+  <main id="mainContent" class="max-w-6xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full space-y-12">
+    <!-- Dynamic views render here via app.js -->
+  </main>
+
+  <!-- ================= FOOTER (FB, INSTA, LINKEDIN, GMAIL & ABOUT/CONTACT) ================= -->
+  <footer class="w-full bg-[#17233c] text-slate-300 pt-16 pb-12 border-t border-slate-800 text-xs mt-16">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6">
+      
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-8 mb-12">
+        
+        <!-- Col 1: Brand Info & Social Icons -->
+        <div class="md:col-span-4 space-y-3 text-left">
+          <div class="flex items-center gap-3">
+            <img src="assets/logo-footer.png" alt="SAINO HEALTH" class="h-16 sm:h-20 w-auto object-contain">
+          </div>
+          <p class="text-slate-400 text-xs leading-relaxed max-w-sm">
+            Find, compare and book care from published healthcare providers across India.
+          </p>
+          
+          <!-- Social Icons: Facebook, Instagram, LinkedIn, Gmail -->
+          <div class="pt-2 flex items-center gap-3 text-slate-300">
+            <a href="https://facebook.com" target="_blank" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-[#ad0b0e] hover:text-white flex items-center justify-center transition font-bold" title="Facebook">f</a>
+            <a href="https://instagram.com" target="_blank" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-[#ad0b0e] hover:text-white flex items-center justify-center transition font-bold" title="Instagram">ig</a>
+            <a href="https://linkedin.com" target="_blank" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-[#ad0b0e] hover:text-white flex items-center justify-center transition font-bold" title="LinkedIn">in</a>
+            <a href="mailto:support@sainohealth.com" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-[#ad0b0e] hover:text-white flex items-center justify-center transition font-bold text-xs" title="Gmail">✉</a>
+          </div>
+        </div>
+
+        <!-- Col 2: Services -->
+        <div class="md:col-span-3 space-y-2 text-left">
+          <h4 class="text-white font-bold text-sm mb-3">Healthcare Services</h4>
+          <ul class="space-y-1.5 text-slate-400 font-medium">
+            <li><a href="#" onclick="filterCategory('hospital')" class="hover:text-white transition">Hospitals</a></li>
+            <li><a href="#" onclick="filterCategory('clinic')" class="hover:text-white transition">Doctor Clinics</a></li>
+            <li><a href="#" onclick="filterCategory('diagnostic')" class="hover:text-white transition">Diagnostic Labs</a></li>
+            <li><a href="#" onclick="filterCategory('bloodbank')" class="hover:text-white transition">Blood Banks</a></li>
+            <li><a href="#" onclick="filterCategory('ambulance')" class="hover:text-white transition">Ambulance Services</a></li>
+          </ul>
+        </div>
+
+        <!-- Col 3: Company (About Us & Contact Us only here!) -->
+        <div class="md:col-span-2 space-y-2 text-left">
+          <h4 class="text-white font-bold text-sm mb-3">Company</h4>
+          <ul class="space-y-1.5 text-slate-400 font-medium">
+            <li><a href="#" onclick="event.preventDefault(); navigateTo('about')" class="hover:text-[#ad0b0e] font-bold text-white transition">About Us</a></li>
+            <li><a href="#" onclick="event.preventDefault(); navigateTo('contact')" class="hover:text-[#ad0b0e] font-bold text-white transition">Contact Us</a></li>
+            <li><a href="#" onclick="event.preventDefault(); navigateTo('faqs')" class="hover:text-white transition">FAQs</a></li>
+            <li><a href="#" class="hover:text-white transition">Privacy Policy</a></li>
+            <li><a href="#" class="hover:text-white transition">Terms of Service</a></li>
+          </ul>
+        </div>
+
+        <!-- Col 4: List Your Care -->
+        <div class="md:col-span-3 space-y-2 text-left">
+          <h4 class="text-white font-bold text-sm mb-3">For Healthcare Providers</h4>
+          <p class="text-slate-400 text-xs">Are you running a hospital, clinic or diagnostic center?</p>
+          <div class="pt-2">
+            <a href="list_your _care/list-your-care.html" class="inline-block px-4 py-2 bg-[#ad0b0e] hover:bg-[#8f080b] text-white font-bold rounded-xl transition text-xs shadow-md">
+              List Your Care Facility →
+            </a>
+          </div>
+          <div class="pt-2">
+            <a href="provider/index.html" class="text-slate-400 hover:text-white underline">Provider Dashboard Login</a>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="border-t border-slate-800 pt-6 flex flex-col sm:flex-row items-center justify-between text-slate-500 text-[11px]">
+        <span>© 2026 SAINO Health. All rights reserved. Saino Tech Ventures Pvt. Ltd.</span>
+        <span>Made with care in India</span>
+      </div>
+
+    </div>
+  </footer>
+  <div id="modalContainer"></div>
+
+  <!-- Scripts -->
+  <script src="js/data.js"></script>
+  <script src="js/live-marketplace.js"></script>
+  <script src="js/ambulance-view.js"></script>
+  <script src="js/bloodbank-view.js"></script>
+  <script src="js/clinic-view.js"></script>
+  <script src="js/hospital-profile-view.js"></script>
+  <script src="js/saved-view.js"></script>
+  <script src="js/app.js"></script>
+
+  <script>
+    if (window.lucide) lucide.createIcons();
+
+    /* Hero Slides Auto-Rotating Engine (Screenshot 1) */
+    const heroSlides = [
+      {
+        tag: "EMERGENCY CARE",
+        title: "Blood bank and emergency support",
+        subtitle: "Search published blood banks, hospitals and emergency services across India.",
+        image: "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=1200&q=80"
+      },
+      {
+        tag: "HEALTHCARE DISCOVERY",
+        title: "Find top doctors, clinics & hospitals",
+        subtitle: "Find published medical specialists and book appointments across India.",
+        image: "https://images.unsplash.com/photo-1586773860418-d37222d8fce3?auto=format&fit=crop&w=1200&q=80"
+      },
+      {
+        tag: "DIAGNOSTICS & LABS",
+        title: "Book 3.0T MRI, CT scans and checkups",
+        subtitle: "Fast-track diagnostics with digital WhatsApp reports delivered within 2 hours.",
+        image: "https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&w=1200&q=80"
+      }
+    ];
+
+    let currentHeroSlide = 0;
+    let heroTimer = null;
+
+    function applyHeroSlide(idx) {
+      currentHeroSlide = (idx + heroSlides.length) % heroSlides.length;
+      const slide = heroSlides[currentHeroSlide];
+      const card = document.getElementById("heroBannerCard");
+      const tag = document.getElementById("heroBannerTag");
+      const title = document.getElementById("heroBannerTitle");
+      const sub = document.getElementById("heroBannerSubtitle");
+      const dots = document.querySelectorAll("#heroSlideDots span");
+
+      if (tag) tag.textContent = slide.tag;
+      if (title) title.textContent = slide.title;
+      if (sub) sub.textContent = slide.subtitle;
+      if (card) {
+        card.style.background = `linear-gradient(135deg, rgba(7, 17, 38, 0.90) 0%, rgba(7, 17, 38, 0.70) 50%, rgba(7, 17, 38, 0.92) 100%), url('${slide.image}') center/cover no-repeat`;
+      }
+
+      dots.forEach((dot, i) => {
+        dot.className = (i === currentHeroSlide)
+          ? "w-5 h-1.5 rounded-full bg-white transition-all"
+          : "w-1.5 h-1.5 rounded-full bg-white/40 transition-all";
+      });
+    }
+
+    function nextHeroSlide() {
+      applyHeroSlide(currentHeroSlide + 1);
+      restartHeroTimer();
+    }
+
+    function prevHeroSlide() {
+      applyHeroSlide(currentHeroSlide - 1);
+      restartHeroTimer();
+    }
+
+    function restartHeroTimer() {
+      if (heroTimer) clearInterval(heroTimer);
+      heroTimer = setInterval(nextHeroSlide, 4500);
+    }
+
+    restartHeroTimer();
+
+    function toggleProfileDropdown() {
+      const dropdown = document.getElementById("userProfileDropdown");
+      if (dropdown) dropdown.classList.toggle("hidden");
+    }
+
+    document.addEventListener("click", function(e) {
+      const dropdown = document.getElementById("userProfileDropdown");
+      if (dropdown && !e.target.closest("#userProfileDropdown") && !e.target.closest("button[onclick='toggleProfileDropdown()']")) {
+        dropdown.classList.add("hidden");
+      }
+    });
+
+  </script>
+  
+</body>
+</html>
