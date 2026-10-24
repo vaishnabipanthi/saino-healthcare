@@ -507,14 +507,43 @@ function switchNearYouTab(tabKey) {
   if (!items.length) { container.innerHTML = '<div class="col-span-full p-6 text-center text-sm text-slate-500">No published providers are available in this category yet.</div>'; return; }
   container.innerHTML = items.map(p => `
     <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs flex flex-col justify-between">
-      <div class="relative h-40 bg-slate-100">
-        <img src="${p.cover_image_url || p.image || p.logo_url || p.logo || 'assets/logo.png'}" alt="${p.name}" class="w-full h-full object-cover">
-        <span class="absolute top-3 left-3 bg-emerald-600 text-white text-[9px] font-black px-2 py-0.5 rounded-md shadow-xs">Verified</span>
-        <button class="absolute top-3 right-3 w-7 h-7 bg-white/90 rounded-full flex items-center justify-center text-slate-400 hover:text-red-600">♥</button>
-      </div>
+      
+<div class="relative h-40 bg-slate-100">
+  <button type="button"
+    onclick="openProviderProfile('${p.id}')"
+    class="block h-full w-full overflow-hidden"
+    aria-label="Open ${escapeReviewHtml(p.name)} profile">
+    <img
+      src="${p.cover_image_url || p.image || p.logo_url || p.logo || 'assets/logo.png'}"
+      alt="${escapeReviewHtml(p.name)}"
+      class="h-full w-full object-cover transition-transform duration-300 hover:scale-105">
+  </button>
+
+  <span class="pointer-events-none absolute top-3 left-3 bg-emerald-600 text-white text-[9px] font-black px-2 py-0.5 rounded-md shadow-xs">
+    Verified
+  </span>
+
+  <button type="button"
+        
+    <div class="absolute top-3 right-3 rounded-full bg-white/95 p-1 shadow-sm">
+      ${typeof window.savedHeartButton === 'function'
+        ? window.savedHeartButton(p.id, 'p-1')
+        : ''}
+    </div>
+  </button>
+</div>
+
       <div class="p-4 flex flex-col flex-1 justify-between gap-3 text-left">
         <div>
-          <h3 class="font-bold text-sm text-slate-900 leading-snug">${p.name}</h3>
+          
+          <h3 class="font-bold text-sm text-slate-900 leading-snug">
+            <button type="button"
+              onclick="openProviderProfile('${p.id}')"
+              class="text-left hover:text-[#ad0b0e] hover:underline">
+              ${escapeReviewHtml(p.name)}
+            </button>
+          </h3>
+
           <div class="flex items-center gap-1.5 text-xs mt-1">
             <span class="text-amber-500 font-bold">★ ${Number(p.rating || 0)}</span>
             <span class="text-slate-400">(${Number(p.reviewsCount || p.reviews_count || 0)} reviews)</span>
@@ -4217,7 +4246,12 @@ function renderHospitalProfileView(providerId) {
       (p.name && p.name.toLowerCase() === String(providerId).toLowerCase())
     )
   ) || ((AppState.activeProvider?.doctors || []).length ? AppState.activeProvider : null);
-  if (provider) setTimeout(() => window.loadProviderBookingQr?.(provider.id), 0);
+  if (provider) {
+  setTimeout(() => {
+    window.loadProviderBookingQr?.(provider.id);
+    window.loadLiveProviderReviews?.(provider.id);
+  }, 0);
+}
   if (!provider) return '<section class="max-w-4xl mx-auto p-8 text-center"><h1 class="text-2xl font-bold">Provider listing unavailable</h1><p class="mt-2 text-slate-600">This profile is not currently available from the live marketplace.</p><button class="mt-5 px-4 py-2 rounded-lg border" onclick="navigateTo(\'marketplace\')">Back to marketplace</button></section>';
 
   const name = provider.name || "Healthcare Facility";
@@ -4226,6 +4260,34 @@ function renderHospitalProfileView(providerId) {
   const locationText = provider.address || provider.location || "Location not provided";
   const ratingText = Number(provider.rating || 0);
   const reviewsCount = Number(provider.reviewsCount || provider.reviews_count || 0);
+  const reviewsList = Array.isArray(provider.reviews) ? provider.reviews : [];
+  const galleryPhotos = Array.isArray(provider.photos)
+  ? provider.photos.filter(photo => typeof photo === 'string' && photo.trim())
+  : [];
+
+const reviewsHtml = reviewsList.length
+  ? reviewsList.map(r => `
+      <div class="bg-white border border-slate-200 rounded-2xl p-5 mb-3">
+        <div class="flex items-center justify-between gap-3">
+          <span class="font-bold text-sm text-slate-900">
+            ${escapeReviewHtml(r.user || 'Patient')}
+          </span>
+
+          ${r.verified_visit
+            ? '<span class="text-xs font-bold text-emerald-700">✓ Verified Visit</span>'
+            : ''}
+        </div>
+
+        <div class="text-amber-500 mt-2">
+          ${'★'.repeat(Math.max(0, Math.min(5, Number(r.rating) || 0)))}
+        </div>
+
+        <p class="text-sm text-slate-600 mt-2">
+          ${escapeReviewHtml(r.comment || '')}
+        </p>
+      </div>
+    `).join('')
+  : '<p class="text-sm text-slate-500">No patient reviews yet.</p>';
 
   // Real Doctors List (Doctor photo, degrees, 14 yrs exp, ₹500 fees)
   const doctorsList = Array.isArray(provider.doctors) ? provider.doctors.filter(d => d && d.id) : [];
@@ -4274,14 +4336,37 @@ function renderHospitalProfileView(providerId) {
   return `
     <div class="bg-slate-50 min-h-screen pb-16 text-slate-900">
       
-      <!-- Back Button & Breadcrumbs -->
-      <div class="max-w-6xl mx-auto px-4 sm:px-6 pt-5">
-        <div class="flex items-center justify-between mb-3 text-xs">
-          <button onclick="returnToProviderSource()" class="text-slate-600 hover:text-[#ad0b0e] font-bold flex items-center gap-1 transition">
-            <span>← Back to previous page</span>
-          </button>
-          <span class="text-slate-400">Home › Healthcare Providers › <strong class="text-slate-800">${name}</strong></span>
-        </div>
+          <!-- Back Button & Breadcrumbs -->
+          <div class="max-w-6xl mx-auto px-4 sm:px-6 pt-5">
+            <div class="mb-4 flex flex-wrap items-center justify-between gap-3 text-xs">
+
+              <button type="button"
+                onclick="returnToProviderSource()"
+                class="inline-flex items-center gap-2 font-bold text-slate-600 transition hover:text-[#ad0b0e]">
+                <i data-lucide="arrow-left" class="h-4 w-4"></i>
+                Back to previous page
+              </button>
+
+              <nav aria-label="Breadcrumb" class="flex flex-wrap items-center gap-2 text-slate-400">
+                <button type="button"
+                  onclick="navigateTo('marketplace')"
+                  class="hover:text-[#ad0b0e] hover:underline">
+                  Home
+                </button>
+
+                <i data-lucide="chevron-right" class="h-3 w-3"></i>
+
+                <button type="button"
+                  onclick="returnToProviderSource()"
+                  class="hover:text-[#ad0b0e] hover:underline">
+                  Healthcare Providers
+                </button>
+
+                <i data-lucide="chevron-right" class="h-3 w-3"></i>
+
+                <strong class="text-slate-800">${escapeReviewHtml(name)}</strong>
+              </nav>
+            </div>
 
         <!-- 1. FULL COVER BANNER & OVERLAPPING LOGO (Practo Screenshot 4) -->
         <div class="relative w-full rounded-3xl overflow-hidden bg-slate-900 shadow-md" style="min-height: 250px;">
@@ -4316,21 +4401,73 @@ function renderHospitalProfileView(providerId) {
           </div>
         </div>
 
-        <!-- 2. PRACTO SUB-NAV TABS -->
-        <div class="flex items-center gap-6 border-b border-slate-200 mt-6 pb-3 text-xs font-bold text-slate-600">
-          <button class="text-[#ad0b0e] border-b-2 border-[#ad0b0e] pb-3 -mb-3 font-extrabold">Overview</button>
-          <button onclick="document.getElementById('profileDoctorsSec')?.scrollIntoView({behavior:'smooth'})" class="hover:text-slate-900 transition">Booking options (${doctorsList.length})</button>
-          <button onclick="openProviderReviews('${provider.id}')" class="hover:text-slate-900 transition">Patient Stories &amp; Reviews</button>
-        </div>
+        
+<!-- 2. PROFILE SECTION NAVIGATION -->
+<div class="flex items-center gap-6 overflow-x-auto border-b border-slate-200 mt-6 pb-3 text-xs font-bold text-slate-600">
+  <button type="button"
+    onclick="document.getElementById('profileOverviewSec')?.scrollIntoView({behavior:'smooth',block:'start'})"
+    class="shrink-0 text-[#ad0b0e] hover:text-red-800">
+    Overview
+  </button>
+
+  <button type="button"
+    onclick="document.getElementById('profileDoctorsSec')?.scrollIntoView({behavior:'smooth',block:'start'})"
+    class="shrink-0 hover:text-[#ad0b0e]">
+    Booking Options (${doctorsList.length})
+  </button>
+
+  <button type="button"
+    onclick="document.getElementById('profileReviewsSec')?.scrollIntoView({behavior:'smooth',block:'start'})"
+    class="shrink-0 hover:text-[#ad0b0e]">
+    Patient Stories &amp; Reviews
+  </button>
+</div>
+
 
         <div class="flex items-center gap-4 py-3">
           <button type="button" onclick="toggleLike('${escapeReviewHtml(provider.id)}')" class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:text-red-700"><span aria-hidden="true">${provider.isLiked ? '♥' : '♡'}</span><span>${provider.isLiked ? 'Liked' : 'Like'} · ${Number(provider.likesCount || 0).toLocaleString()}</span></button>
           ${typeof window.savedHeartButton === 'function' ? `<span class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700">${window.savedHeartButton(provider.id, 'p-1')} Save provider</span>` : ''}
         </div>
+        
+        
+        <!-- HOSPITAL PHOTO GALLERY -->
+        ${galleryPhotos.length ? `
+          <section class="mt-6 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+            <div class="mb-4 flex items-center justify-between">
+              <h2 class="text-base font-extrabold text-slate-900">
+                Hospital Gallery
+              </h2>
+              <span class="text-xs font-semibold text-slate-500">
+                ${galleryPhotos.length} Photos
+              </span>
+            </div>
 
-        <!-- 3. MAIN SECTION: CLINIC DETAILS + DOCTORS -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-          
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              ${galleryPhotos.map((photo, index) => `
+                <button
+                  type="button"
+                  onclick="openSainoGallery('${escapeReviewHtml(provider.id)}', ${index})"
+                  aria-label="View gallery photo ${index + 1}"
+                  class="group relative aspect-[4/3] overflow-hidden rounded-xl bg-slate-100 focus:outline-none focus:ring-2 focus:ring-red-600"
+                >
+                  <img
+                    src="${escapeReviewHtml(photo)}"
+                    alt="${escapeReviewHtml(name)} gallery photo ${index + 1}"
+                    loading="lazy"
+                    class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  >
+                  <span class="absolute bottom-2 right-2 rounded-lg bg-black/60 px-2 py-1 text-[10px] font-bold text-white opacity-0 transition-opacity group-hover:opacity-100">
+                    View photo
+                  </span>
+                </button>
+              `).join("")}
+            </div>
+          </section>
+        ` : ""}
+
+<!-- 3. MAIN SECTION: CLINIC DETAILS + DOCTORS -->
+<div id="profileOverviewSec" class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6 scroll-mt-24">
+
           <!-- Left: About & Doctors -->
           <div class="lg:col-span-2 space-y-6 text-left">
             <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
@@ -4365,11 +4502,444 @@ function renderHospitalProfileView(providerId) {
           </div>
 
         </div>
+                              <!-- PATIENT REVIEWS -->
+           <div id="profileReviewsSec" class="mt-8 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                      
+            <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <h2 class="text-lg font-extrabold text-slate-900">
+                Patient Stories &amp; Reviews
+              </h2>
+
+              <button type="button"
+                onclick="openProviderReviews('${provider.id}')"
+                class="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 px-4 py-2 text-xs font-bold text-[#ad0b0e] transition hover:bg-rose-50">
+                View All Reviews
+                <i data-lucide="arrow-up-right" class="h-4 w-4"></i>
+              </button>
+            </div>
+
+
+            <div id="liveProviderReviews" data-provider-id="${escapeReviewHtml(provider.id)}">
+              <p class="text-sm text-slate-500">Loading reviews...</p>
+            </div>
+          </div>
 
       </div>
     </div>
   `;
 }
+
+window.SAINO_GALLERY = {
+  photos: [],
+  index: 0,
+  previousFocus: null
+};
+
+window.openSainoGallery = function(providerId, index = 0) {
+  const provider = (window.AppState?.providers || []).find(
+    p => String(p.id) === String(providerId)
+  );
+
+  const photos = Array.isArray(provider?.photos)
+    ? provider.photos.filter(p => typeof p === "string" && p.trim())
+    : [];
+
+  if (!photos.length) return;
+
+  window.SAINO_GALLERY.photos = photos;
+  window.SAINO_GALLERY.index = Math.max(0, Math.min(index, photos.length - 1));
+  window.SAINO_GALLERY.previousFocus = document.activeElement;
+
+  document.getElementById("sainoGalleryLightbox")?.remove();
+
+  const modal = document.createElement("div");
+  modal.id = "sainoGalleryLightbox";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  modal.setAttribute("aria-label", "Hospital photo gallery");
+
+  modal.className =
+    "fixed inset-0 z-[9999] flex items-center justify-center bg-black/95 p-3 sm:p-8";
+
+  modal.innerHTML = `
+    <button type="button" onclick="closeSainoGallery()"
+      aria-label="Close gallery"
+      class="absolute right-4 top-4 z-20 rounded-full bg-white/15 p-3 text-white hover:bg-white/25">
+      <i data-lucide="x" class="h-6 w-6"></i>
+    </button>
+
+    <button type="button" onclick="moveSainoGallery(-1)"
+      aria-label="Previous photo"
+      class="absolute left-3 top-1/2 z-20 -translate-y-1/2 rounded-full bg-white/15 p-3 text-white hover:bg-white/25 sm:left-8">
+      <i data-lucide="chevron-left" class="h-6 w-6"></i>
+    </button>
+
+    <img id="sainoGalleryFullImage"
+      alt="Hospital gallery photo"
+      class="max-h-[85vh] max-w-[85vw] select-none object-contain">
+
+    <button type="button" onclick="moveSainoGallery(1)"
+      aria-label="Next photo"
+      class="absolute right-3 top-1/2 z-20 -translate-y-1/2 rounded-full bg-white/15 p-3 text-white hover:bg-white/25 sm:right-8">
+      <i data-lucide="chevron-right" class="h-6 w-6"></i>
+    </button>
+
+    <div id="sainoGalleryCounter"
+      class="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full bg-white/15 px-4 py-2 text-xs font-bold text-white">
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  document.body.style.overflow = "hidden";
+
+  modal.addEventListener("click", e => {
+    if (e.target === modal) closeSainoGallery();
+  });
+
+  let touchStartX = 0;
+
+  modal.addEventListener("touchstart", e => {
+    touchStartX = e.changedTouches[0].screenX;
+  }, { passive: true });
+
+  modal.addEventListener("touchend", e => {
+    const difference = e.changedTouches[0].screenX - touchStartX;
+
+    if (Math.abs(difference) > 50) {
+      moveSainoGallery(difference < 0 ? 1 : -1);
+    }
+  }, { passive: true });
+
+  window.renderSainoGalleryImage();
+  modal.querySelector('[aria-label="Close gallery"]')?.focus();
+  window.lucide?.createIcons();
+};
+
+window.renderSainoGalleryImage = function() {
+  const gallery = window.SAINO_GALLERY;
+  const image = document.getElementById("sainoGalleryFullImage");
+  const counter = document.getElementById("sainoGalleryCounter");
+
+  if (!image || !gallery.photos.length) return;
+
+  image.src = gallery.photos[gallery.index];
+  image.alt = `Hospital gallery photo ${gallery.index + 1}`;
+  if (counter) {
+    counter.textContent = `${gallery.index + 1} / ${gallery.photos.length}`;
+  }
+};
+
+window.moveSainoGallery = function(direction) {
+  const gallery = window.SAINO_GALLERY;
+  if (!gallery.photos.length) return;
+
+  gallery.index =
+    (gallery.index + direction + gallery.photos.length) %
+    gallery.photos.length;
+
+  window.renderSainoGalleryImage();
+};
+
+window.closeSainoGallery = function() {
+  const previousFocus = window.SAINO_GALLERY.previousFocus;
+  document.getElementById("sainoGalleryLightbox")?.remove();
+  document.body.style.overflow = "";
+  previousFocus?.isConnected && previousFocus.focus();
+};
+
+document.addEventListener("keydown", e => {
+  if (!document.getElementById("sainoGalleryLightbox")) return;
+
+  if (e.key === "Escape") closeSainoGallery();
+  if (e.key === "ArrowLeft") moveSainoGallery(-1);
+  if (e.key === "ArrowRight") moveSainoGallery(1);
+});
+
+
+window.loadLiveProviderReviews = async function (providerId) {
+  const mount = document.getElementById("liveProviderReviews");
+
+  if (!mount || String(mount.dataset.providerId) !== String(providerId)) {
+    return;
+  }
+
+  const api = window.SAINO_API_ORIGIN || "";
+  const base = `${api}/api/public/providers/${encodeURIComponent(providerId)}`;
+
+  const token =
+    window.getSainoPatientSession?.()?.token ||
+    localStorage.getItem("SAINO_PATIENT_TOKEN") || "";
+
+  try {
+    const response = await fetch(`${base}/reviews-live`, {
+      cache: "no-store"
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || "Could not load reviews.");
+    }
+
+    let likedReviewIds = new Set();
+    let ownReviewIds = new Set();
+
+    if (token) {
+      const headers = {
+        Authorization: `Bearer ${token}`
+      };
+
+      const [likedResult, ownResult] = await Promise.allSettled([
+        fetch(`${base}/review-likes/me`, {
+          headers,
+          cache: "no-store"
+        }),
+        fetch(`${base}/reviews/mine`, {
+          headers,
+          cache: "no-store"
+        })
+      ]);
+
+      if (likedResult.status === "fulfilled" && likedResult.value.ok) {
+        const likedData = await likedResult.value.json();
+
+        likedReviewIds = new Set(
+          (likedData.liked_review_ids || []).map(String)
+        );
+      }
+
+      if (ownResult.status === "fulfilled" && ownResult.value.ok) {
+        const ownData = await ownResult.value.json();
+
+        ownReviewIds = new Set(
+          (ownData.own_review_ids || []).map(String)
+        );
+      }
+    }
+
+    // Avoid rendering old provider data after navigation.
+    if (!mount.isConnected ||
+        String(mount.dataset.providerId) !== String(providerId)) {
+      return;
+    }
+
+    const reviews = Array.isArray(data.reviews) ? data.reviews : [];
+
+    mount.innerHTML = reviews.length
+      ? reviews.map(r => {
+          const reviewId = String(r.id);
+          const isOwn = ownReviewIds.has(reviewId);
+          const isLiked = likedReviewIds.has(reviewId);
+
+          const rating = Math.max(
+            0,
+            Math.min(5, Number(r.rating) || 0)
+          );
+
+          return `
+            <div id="patient-review-${reviewId}"
+              class="mb-4 rounded-xl border border-slate-200 bg-white p-5">
+
+              <div class="flex flex-wrap items-center justify-between gap-3">
+
+                <div class="flex items-center gap-3">
+                  <div class="flex h-10 w-10 shrink-0 items-center justify-center
+                              rounded-full bg-slate-100 text-slate-600">
+                    <svg xmlns="http://www.w3.org/2000/svg"
+                      width="21" height="21" viewBox="0 0 24 24"
+                      fill="none" stroke="currentColor"
+                      stroke-width="1.8" stroke-linecap="round"
+                      stroke-linejoin="round" aria-hidden="true">
+                      <circle cx="12" cy="8" r="4"/>
+                      <path d="M4 21a8 8 0 0 1 16 0"/>
+                    </svg>
+                  </div>
+
+                  <div>
+                    <p class="text-sm font-bold text-slate-900">
+                      ${escapeReviewHtml(r.patient_name || "Patient")}
+                    </p>
+
+                    <p class="text-xs text-slate-500">
+                      ${isOwn ? "Your review" : "Patient review"}
+                    </p>
+                  </div>
+                </div>
+
+                ${r.is_verified
+                  ? `<span class="text-xs font-bold text-emerald-700">
+                       ✓ Verified Visit
+                     </span>`
+                  : ""}
+              </div>
+
+              <div class="mt-3 text-xl text-amber-500">
+                ${"★".repeat(rating)}
+                <span class="text-slate-300">${"★".repeat(5 - rating)}</span>
+              </div>
+
+              <p class="mt-3 whitespace-pre-wrap break-words text-sm text-slate-700">${escapeReviewHtml(r.comment || "")}</p>
+
+              <div class="mt-4 flex items-center justify-between gap-3
+                          border-t border-slate-100 pt-3">
+
+                <button type="button"
+                  id="reviewLikeBtn-${reviewId}"
+                  onclick="likePatientReview('${providerId}', '${reviewId}')"
+                  class="inline-flex items-center gap-2 text-sm font-bold text-slate-600">
+
+                  <span id="reviewHeart-${reviewId}"
+                    class="text-xl ${isLiked ? "text-red-600" : "text-slate-400"}">
+                    ${isLiked ? "♥" : "♡"}
+                  </span>
+
+                  Like ·
+                  <span id="reviewLikes-${reviewId}">
+                    ${Number(r.likes_count || 0)}
+                  </span>
+                </button>
+
+                ${isOwn ? `
+                  <button type="button"
+                    onclick="deletePatientReview('${providerId}', '${reviewId}')"
+                    class="rounded-lg border border-red-200 px-3 py-2
+                           text-xs font-bold text-red-700 hover:bg-red-50">
+                    Delete Review
+                  </button>
+                ` : ""}
+              </div>
+            </div>
+          `;
+        }).join("")
+      : '<p class="text-sm text-slate-500">No patient reviews yet.</p>';
+
+    const heading = mount.previousElementSibling;
+
+    if (heading && heading.tagName === "H2") {
+      heading.textContent =
+        `Patient Stories & Reviews (${reviews.length})`;
+    }
+
+    const focus = window.sainoReviewFocus;
+
+    if (focus &&
+        String(focus.providerId) === String(providerId) &&
+        focus.reviewId) {
+
+      const focusedReviewId = String(focus.reviewId);
+
+      setTimeout(() => {
+        document.getElementById(`patient-review-${focusedReviewId}`)
+          ?.scrollIntoView({
+            behavior: "smooth",
+            block: "center"
+          });
+      }, 150);
+    }
+
+  } catch (error) {
+    mount.innerHTML = `
+      <p class="text-sm text-red-700">
+        Reviews could not be loaded. Please refresh.
+      </p>
+    `;
+
+    console.error("Live reviews loading failed:", error);
+  }
+};
+
+
+
+// LIKE / UNLIKE
+window.likePatientReview = async function (providerId, reviewId) {
+  const token =
+    window.getSainoPatientSession?.()?.token ||
+    localStorage.getItem("SAINO_PATIENT_TOKEN") || "";
+
+  if (!token) {
+    alert("Please log in to like a review.");
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      (window.SAINO_API_ORIGIN || "") +
+      `/api/public/providers/${encodeURIComponent(providerId)}/reviews/${encodeURIComponent(reviewId)}/like`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
+  
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || "Like failed.");
+    }
+
+    const counter = document.getElementById(`reviewLikes-${reviewId}`);
+
+    if (counter) {
+      counter.textContent = data.likes_count;
+    }
+
+    const heart = document.getElementById(`reviewHeart-${reviewId}`);
+
+    if (heart) {
+      heart.textContent = data.liked ? "♥" : "♡";
+      heart.classList.toggle("text-red-600", data.liked);
+      heart.classList.toggle("text-slate-400", !data.liked);
+    }
+
+  } catch (error) {
+    alert(error.message || "Could not update like.");
+  }
+};
+
+// DELETE OWN REVIEW
+window.deletePatientReview = async function (providerId, reviewId) {
+  
+  if (!confirm("Permanently delete your review?")) return;
+
+  const token =
+    window.getSainoPatientSession?.()?.token ||
+    localStorage.getItem("SAINO_PATIENT_TOKEN") || "";
+
+  if (!token) {
+    alert("Please log in first.");
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      (window.SAINO_API_ORIGIN || "") +
+      `/api/public/providers/${encodeURIComponent(providerId)}/reviews/${encodeURIComponent(reviewId)}`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || "Delete failed.");
+    }
+
+    window.sainoReviewFocus = null;
+
+    await window.loadLiveProviderReviews(providerId);
+
+    alert("Review deleted successfully.");
+
+  } catch (error) {
+    alert(error.message || "Could not delete review.");
+  }
+};
 
 window.loadProviderBookingQr = async function(providerId) {
   const mount = document.getElementById('provider-booking-qr');

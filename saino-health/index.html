@@ -243,9 +243,23 @@
         
         <!-- Col 1: Brand Info & Social Icons -->
         <div class="md:col-span-4 space-y-3 text-left">
-          <div class="flex items-center gap-3">
-            <img src="assets/logo-footer.png" alt="SAINO HEALTH" class="h-16 sm:h-20 w-auto object-contain">
-          </div>
+          
+              <div class="flex items-center gap-3">
+                <a href="#"
+                  onclick="event.preventDefault(); navigateTo('marketplace')"
+                  aria-label="SAINO Health Home"
+                  class="inline-flex items-center">
+                  <img
+                    src="assets/logo.png"
+                    alt="SAINO HEALTH"
+                    class="h-16 sm:h-20 w-auto object-contain">
+                </a>
+
+                <strong class="text-white font-extrabold text-base tracking-tight">
+                  SAINO HEALTH
+                </strong>
+              </div>
+
           <p class="text-slate-400 text-xs leading-relaxed max-w-sm">
             Find, compare and book care from published healthcare providers across India.
           </p>

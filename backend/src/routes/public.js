@@ -1,6 +1,7 @@
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const express = require('express');
 const crypto = require('crypto');
-const jwt = require('jsonwebtoken');
 const pool = require('../config/db');
 const providerRouter = require('./provider');
 const razorpay = require('../services/razorpay');
@@ -74,6 +75,175 @@ async function deliverOtp(channel, destination, code, req) {
   const response = await fetch('https://control.msg91.com/api/v5/flow', { method: 'POST', headers: { authkey: authKey, 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ template_id: templateId, recipients: [{ mobiles: mobile, VAR1: code, VAR2: '5 minutes' }] }) });
   if (!response.ok) { const e = new Error('SMS OTP delivery failed. Please try again.'); e.status = 502; throw e; }
 }
+
+/* PATIENT PASSWORD AUTH — REGISTER + LOGIN */
+
+function patientLoginIdentifier(value) {
+  const raw = String(value || '').trim().toLowerCase();
+
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)) {
+    return { email: raw, phone: null };
+  }
+
+  const phone = raw.replace(/[\s()-]/g, '');
+
+  if (/^\d{10}$/.test(phone)) {
+    return { email: null, phone: '+91' + phone };
+  }
+
+  if (/^91\d{10}$/.test(phone)) {
+    return { email: null, phone: '+' + phone };
+  }
+
+  if (/^\+[1-9]\d{7,14}$/.test(phone)) {
+    return { email: null, phone };
+  }
+
+  return null;
+}
+
+function patientPasswordSession(patient) {
+  const token = jwt.sign(
+    {
+      role: 'patient',
+      patientId: String(patient.id),
+      pid: String(patient.pid),
+      name: patient.full_name,
+      phone: patient.phone || '',
+      email: patient.email || ''
+    },
+    jwtSecret(),
+    {
+      expiresIn: '30d',
+      issuer: 'saino-health-patient'
+    }
+  );
+
+  return {
+    success: true,
+    token,
+    patient: {
+      id: patient.pid,
+      name: patient.full_name,
+      phone: patient.phone || '',
+      email: patient.email || ''
+    }
+  };
+}
+
+// REGISTER
+router.post('/auth/register', async (req, res) => {
+  try {
+    await ensureTables();
+
+    const identifier = patientLoginIdentifier(req.body?.identifier);
+    const fullName = String(req.body?.full_name || '').trim();
+    const password = String(req.body?.password || '');
+
+    if (!identifier || !fullName || fullName.length > 200 ||
+        password.length < 8 || password.length > 128) {
+      return res.status(400).json({
+        success: false,
+        error: 'Enter a valid name, email/phone and password (8–128 characters).'
+      });
+    }
+
+    const existing = await pool.query(
+      `SELECT id FROM patient_profiles
+       WHERE ${identifier.email ? 'LOWER(email) = $1' : 'phone = $1'}
+       LIMIT 1`,
+      [identifier.email || identifier.phone]
+    );
+
+    if (existing.rows.length) {
+      return res.status(409).json({
+        success: false,
+        error: 'This patient profile already exists. Please contact support for secure account setup or recovery.'
+      });
+    }
+
+    const hash = await bcrypt.hash(password, 12);
+    const pid = id('PID');
+
+    const result = await pool.query(
+      `INSERT INTO patient_profiles
+       (pid, full_name, phone, email, password_hash)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, pid, full_name, phone, email`,
+      [
+        pid,
+        fullName,
+        identifier.phone,
+        identifier.email,
+        hash
+      ]
+    );
+
+    return res.status(201).json(
+      patientPasswordSession(result.rows[0])
+    );
+
+  } catch (err) {
+    console.error('Patient register error:', err.message);
+
+    if (err.code === '23505') {
+      return res.status(409).json({
+        success: false,
+        error: 'This patient profile already exists.'
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      error: 'Registration failed.'
+    });
+  }
+});
+
+// LOGIN
+router.post('/auth/login', async (req, res) => {
+  try {
+    await ensureTables();
+
+    const identifier = patientLoginIdentifier(req.body?.identifier);
+    const password = String(req.body?.password || '');
+
+    if (!identifier || !password) {
+      return res.status(400).json({
+        success: false,
+        error: 'Enter your email/phone and password.'
+      });
+    }
+
+    const result = await pool.query(
+      `SELECT id, pid, full_name, phone, email, password_hash
+       FROM patient_profiles
+       WHERE ${identifier.email ? 'LOWER(email) = $1' : 'phone = $1'}
+       LIMIT 1`,
+      [identifier.email || identifier.phone]
+    );
+
+    const patient = result.rows[0];
+
+    if (!patient || !patient.password_hash ||
+        !(await bcrypt.compare(password, patient.password_hash))) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials or password not set. Contact support for secure account recovery.'
+      });
+    }
+
+    return res.json(patientPasswordSession(patient));
+
+  } catch (err) {
+    console.error('Patient login error:', err.message);
+
+    return res.status(500).json({
+      success: false,
+      error: 'Login failed.'
+    });
+  }
+});
 
 router.post('/auth/otp/send', async (req, res) => {
   try {
@@ -229,7 +399,8 @@ async function loadPublishedProviders(providerId = null) {
       id: r.id, rating: safeNumber(r.rating || r.stars),
       comment: getText(r, 'comment', 'review', 'feedback'),
       user: getText(r, 'patient_name', 'patient', 'user_name') || 'Patient',
-      date: getText(r, 'created_at', 'date'), verified_visit: Boolean(r.verified_visit || r.booking_id)
+      date: getText(r, 'created_at', 'date'),
+verified_visit: r.is_verified === true
     })).filter(r => r.comment || r.rating);
     const category = getText(raw, 'category', 'provider_type') || 'hospital';
     const firstDoctor = doctors[0] || {};
@@ -301,9 +472,15 @@ router.get('/providers/:id/qr', async (req, res) => {
     await ensureTables();
     const result = await pool.query(`SELECT q.id,q.code,q.label,q.branch_name,q.status,q.created_at
       FROM provider_qr_codes q JOIN providers p ON p.id=q.provider_id
-      WHERE q.provider_id::text=$1 AND q.status='active'
-        AND p.verification_status='verified' AND p.is_published=TRUE
-      ORDER BY q.created_at DESC LIMIT 1`, [String(req.params.id)]);
+      WHERE q.provider_id::text=$1
+  AND q.status='active'
+  AND q.label='Booking QR'
+  AND p.verification_status='verified'
+  AND p.is_published=TRUE
+  AND LOWER(COALESCE(p.status, 'active'))
+      NOT IN ('suspended', 'rejected', 'inactive')
+ORDER BY q.created_at ASC
+LIMIT 1;`, [String(req.params.id)]);
     if (!result.rowCount) return res.status(404).json({ success: false, error: 'No active provider booking QR has been generated yet.' });
     const qr = result.rows[0];
     res.json({ success: true, qr, url: `/api/public/qr/${encodeURIComponent(qr.code)}` });
@@ -337,30 +514,501 @@ router.post('/providers/:id/like', async (req, res) => {
 });
 
 router.post('/providers/:id/reviews', patientAuth, async (req, res) => {
+  let client;
+  let transactionStarted = false;
+
   try {
     await ensureTables();
+
     const providerId = String(req.params.id || '');
+    const bookingRef = String(req.body?.booking_ref || '').trim();
+    const patientPid = String(req.patient?.pid || '').trim();
+    const patientName = String(
+      req.patient?.name || req.patient?.full_name || 'Patient'
+    ).trim().slice(0, 200);
+
     const rating = Number(req.body?.rating);
     const comment = String(req.body?.comment || '').trim();
-    if (!/^\d+$/.test(providerId)) return res.status(400).json({ success: false, error: 'Invalid provider.' });
-    if (!Number.isInteger(rating) || rating < 1 || rating > 5) return res.status(400).json({ success: false, error: 'Choose a rating from 1 to 5.' });
-    if (!comment || comment.length > 2000) return res.status(400).json({ success: false, error: 'Write a review of up to 2,000 characters.' });
-    const provider = await pool.query(`SELECT id FROM providers WHERE id::text=$1
-      AND verification_status='verified' AND is_published=TRUE`, [providerId]);
-    if (!provider.rowCount) return res.status(404).json({ success: false, error: 'Provider listing is unavailable.' });
-    const inserted = await pool.query(`INSERT INTO reviews(provider_id,patient_name,rating,comment,created_at)
-      VALUES($1,$2,$3,$4,NOW()) RETURNING id,patient_name,rating,comment,created_at`,
-    [provider.rows[0].id, String(req.patient.name || 'Patient').slice(0, 200), rating, comment]);
-    const summary = await pool.query(`SELECT COUNT(*)::int AS count, ROUND(AVG(rating)::numeric,1) AS average
-      FROM reviews WHERE provider_id=$1 AND COALESCE(is_hidden,FALSE)=FALSE`, [provider.rows[0].id]);
+
+    if (!/^\d+$/.test(providerId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid provider.'
+      });
+    }
+
+    if (!patientPid) {
+      return res.status(401).json({
+        success: false,
+        error: 'Please log in again.'
+      });
+    }
+
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      return res.status(400).json({
+        success: false,
+        error: 'Choose a rating from 1 to 5.'
+      });
+    }
+
+    if (!comment || comment.length > 2000) {
+      return res.status(400).json({
+        success: false,
+        error: 'Write a review of up to 2,000 characters.'
+      });
+    }
+
+    client = await pool.connect();
+    await client.query('BEGIN');
+    transactionStarted = true;
+
+    const provider = await client.query(`
+      SELECT id
+      FROM providers
+      WHERE id = $1
+        AND verification_status = 'verified'
+        AND is_published = TRUE
+      LIMIT 1
+    `, [providerId]);
+
+    if (!provider.rowCount) {
+      await client.query('ROLLBACK');
+      transactionStarted = false;
+
+      return res.status(404).json({
+        success: false,
+        error: 'Hospital not found.'
+      });
+    }
+
+    let appointmentId = null;
+    let isVerified = false;
+
+    // Booking reference supplied = verified appointment review.
+    if (bookingRef) {
+      const appointment = await client.query(`
+        SELECT a.id
+        FROM provider_appointments a
+        WHERE a.booking_ref = $1
+          AND a.patient_id = $2
+          AND a.provider_id = $3
+          AND LOWER(a.status) = 'completed'
+        LIMIT 1
+        FOR UPDATE OF a
+      `, [bookingRef, patientPid, providerId]);
+
+      if (!appointment.rowCount) {
+        await client.query('ROLLBACK');
+        transactionStarted = false;
+
+        return res.status(403).json({
+          success: false,
+          error: 'Only your completed appointment can be reviewed.'
+        });
+      }
+
+      appointmentId = appointment.rows[0].id;
+      isVerified = true;
+
+      const existing = await client.query(`
+        SELECT id
+        FROM reviews
+        WHERE appointment_id = $1
+        LIMIT 1
+      `, [appointmentId]);
+
+      if (existing.rowCount) {
+        await client.query('ROLLBACK');
+        transactionStarted = false;
+
+        return res.status(409).json({
+          success: false,
+          error: 'You have already reviewed this appointment.'
+        });
+      }
+    }
+
+    // No booking reference = direct, unverified review.
+    // Patient identity always comes from authenticated session.
+    const inserted = await client.query(`
+      INSERT INTO reviews (
+        provider_id,
+        appointment_id,
+        patient_pid,
+        patient_name,
+        rating,
+        comment,
+        is_verified,
+        created_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+      RETURNING
+        id,
+        patient_name,
+        rating,
+        comment,
+        is_verified,
+        created_at
+    `, [
+      providerId,
+      appointmentId,
+      patientPid,
+      patientName,
+      rating,
+      comment,
+      isVerified
+    ]);
+
+    const summary = await client.query(`
+      SELECT
+        COUNT(*)::int AS count,
+        ROUND(AVG(rating)::numeric, 1) AS average
+      FROM reviews
+      WHERE provider_id = $1
+        AND COALESCE(is_hidden, FALSE) = FALSE
+    `, [providerId]);
+
+    await client.query('COMMIT');
+    transactionStarted = false;
+
     const row = inserted.rows[0];
-    res.status(201).json({ success: true, review: { id: row.id, user: row.patient_name, rating: Number(row.rating), comment: row.comment, date: row.created_at },
-      reviews_count: Number(summary.rows[0].count || 0), rating_average: Number(summary.rows[0].average || 0) });
+
+    return res.status(201).json({
+      success: true,
+      review: {
+        id: row.id,
+        patient_name: row.patient_name,
+        user: row.patient_name,
+        rating: Number(row.rating),
+        comment: row.comment,
+        created_at: row.created_at,
+        date: row.created_at,
+        is_verified: row.is_verified,
+        likes_count: 0,
+        is_own_review: true
+      },
+      reviews_count: Number(summary.rows[0].count || 0),
+      rating_average: Number(summary.rows[0].average || 0)
+    });
+
   } catch (err) {
-    console.error('Public review submission failed:', err.message);
-    res.status(503).json({ success: false, error: 'Review could not be saved. Please try again.' });
+    if (client && transactionStarted) {
+      await client.query('ROLLBACK').catch(() => {});
+    }
+
+    if (err.code === '23505') {
+      return res.status(409).json({
+        success: false,
+        error: 'You have already reviewed this appointment.'
+      });
+    }
+
+    console.error('Public review submission failed:', err);
+
+    return res.status(503).json({
+      success: false,
+      error: 'Review could not be saved. Please try again.'
+    });
+
+  } finally {
+    if (client) client.release();
   }
 });
+
+
+// LIKE / UNLIKE REVIEW
+router.post('/providers/:id/reviews/:reviewId/like', patientAuth, async (req, res) => {
+  try {
+    const providerId = String(req.params.id || '');
+    const reviewId = String(req.params.reviewId || '');
+    const patientPid = String(req.patient.pid || '');
+
+    if (!/^\d+$/.test(providerId) || !/^\d+$/.test(reviewId)) {
+      return res.status(400).json({ success: false, error: 'Invalid review.' });
+    }
+
+    const review = await pool.query(`
+      SELECT id FROM reviews
+      WHERE id = $1 AND provider_id = $2
+        AND COALESCE(is_hidden, FALSE) = FALSE
+    `, [reviewId, providerId]);
+
+    if (!review.rowCount) {
+      return res.status(404).json({ success: false, error: 'Review not found.' });
+    }
+
+    const inserted = await pool.query(`
+      INSERT INTO review_likes (review_id, patient_pid)
+      VALUES ($1, $2)
+      ON CONFLICT DO NOTHING
+      RETURNING review_id
+    `, [reviewId, patientPid]);
+
+    let liked = true;
+
+    if (!inserted.rowCount) {
+      await pool.query(`
+        DELETE FROM review_likes
+        WHERE review_id = $1 AND patient_pid = $2
+      `, [reviewId, patientPid]);
+
+      liked = false;
+    }
+
+    const count = await pool.query(`
+      SELECT COUNT(*)::int AS likes_count
+      FROM review_likes WHERE review_id = $1
+    `, [reviewId]);
+
+    return res.json({
+      success: true,
+      liked,
+      likes_count: count.rows[0].likes_count
+    });
+
+  } catch (err) {
+    console.error('Review like failed:', err.message);
+    return res.status(503).json({
+      success: false,
+      error: 'Could not update review like.'
+    });
+  }
+});
+
+
+// DELETE OWN REVIEW — direct and appointment-based
+router.delete('/providers/:id/reviews/:reviewId', patientAuth, async (req, res) => {
+  try {
+    const providerId = String(req.params.id || '');
+    const reviewId = String(req.params.reviewId || '');
+    const patientPid = String(req.patient?.pid || '').trim();
+
+    if (!/^\d+$/.test(providerId) || !/^\d+$/.test(reviewId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid review.'
+      });
+    }
+
+    if (!patientPid) {
+      return res.status(401).json({
+        success: false,
+        error: 'Please log in again.'
+      });
+    }
+
+    const deleted = await pool.query(`
+      DELETE FROM reviews
+      WHERE id = $1
+        AND provider_id = $2
+        AND patient_pid = $3
+      RETURNING id
+    `, [reviewId, providerId, patientPid]);
+
+    if (!deleted.rowCount) {
+      return res.status(404).json({
+        success: false,
+        error: 'Your review was not found.'
+      });
+    }
+
+    const summary = await pool.query(`
+      SELECT
+        COUNT(*)::int AS count,
+        ROUND(AVG(rating)::numeric, 1) AS average
+      FROM reviews
+      WHERE provider_id = $1
+        AND COALESCE(is_hidden, FALSE) = FALSE
+    `, [providerId]);
+
+    return res.json({
+      success: true,
+      deleted_review_id: deleted.rows[0].id,
+      reviews_count: Number(summary.rows[0].count || 0),
+      rating_average: Number(summary.rows[0].average || 0)
+    });
+
+  } catch (err) {
+    console.error('Review deletion failed:', err);
+
+    return res.status(503).json({
+      success: false,
+      error: 'Could not delete review.'
+    });
+  }
+});
+
+// GET: Logged-in patient's review for a booking
+router.get('/bookings/:bookingRef/review', patientAuth, async (req, res) => {
+  try {
+    const bookingRef = String(req.params.bookingRef || '').trim();
+
+    const result = await pool.query(`
+      SELECT
+        r.id,
+        r.provider_id,
+        r.patient_name,
+        r.rating,
+        r.comment,
+        r.created_at,
+        r.is_verified
+      FROM provider_appointments a
+      JOIN reviews r ON r.appointment_id = a.id
+      WHERE a.booking_ref = $1
+        AND a.patient_id = $2
+        AND COALESCE(r.is_hidden, FALSE) = FALSE
+      ORDER BY r.created_at DESC
+      LIMIT 1
+    `, [bookingRef, req.patient.pid]);
+
+    if (!result.rowCount) {
+      return res.status(404).json({
+        success: false,
+        error: 'Review not found for this booking.'
+      });
+    }
+
+    return res.json({
+      success: true,
+      review: result.rows[0]
+    });
+
+  } catch (err) {
+    console.error('Booking review lookup failed:', err.message);
+
+    return res.status(503).json({
+      success: false,
+      error: 'Could not load booking review.'
+    });
+  }
+});
+
+// GET: Reviews liked by the currently logged-in patient
+router.get('/providers/:id/review-likes/me', patientAuth, async (req, res) => {
+  try {
+    const providerId = String(req.params.id || '');
+
+    if (!/^\d+$/.test(providerId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid provider.'
+      });
+    }
+
+    const result = await pool.query(`
+      SELECT l.review_id
+      FROM review_likes l
+      JOIN reviews r ON r.id = l.review_id
+      WHERE r.provider_id::text = $1
+        AND l.patient_pid = $2
+        AND COALESCE(r.is_hidden, FALSE) = FALSE
+    `, [providerId, req.patient.pid]);
+
+    return res.json({
+      success: true,
+      liked_review_ids: result.rows.map(row => String(row.review_id))
+    });
+
+  } catch (err) {
+    console.error('Patient review likes lookup failed:', err.message);
+
+    return res.status(503).json({
+      success: false,
+      error: 'Could not load liked reviews.'
+    });
+  }
+});
+
+ // GET: Reviews owned by the logged-in patient
+router.get('/providers/:id/reviews/mine', patientAuth, async (req, res) => {
+  try {
+    const providerId = String(req.params.id || '');
+    const patientPid = String(req.patient?.pid || '').trim();
+
+    if (!/^\d+$/.test(providerId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid provider.'
+      });
+    }
+
+    if (!patientPid) {
+      return res.status(401).json({
+        success: false,
+        error: 'Please log in again.'
+      });
+    }
+
+    const result = await pool.query(`
+      SELECT id
+      FROM reviews
+      WHERE provider_id = $1
+        AND patient_pid = $2
+        AND COALESCE(is_hidden, FALSE) = FALSE
+    `, [providerId, patientPid]);
+
+    return res.json({
+      success: true,
+      own_review_ids: result.rows.map(row => String(row.id))
+    });
+
+  } catch (err) {
+    console.error('Own reviews lookup failed:', err.message);
+
+    return res.status(503).json({
+      success: false,
+      error: 'Could not load your reviews.'
+    });
+  }
+});
+
+// GET: Live public reviews for a provider
+router.get('/providers/:id/reviews-live', async (req, res) => {
+  try {
+    const providerId = String(req.params.id || '');
+
+    if (!/^\d+$/.test(providerId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid provider.'
+      });
+    }
+
+    const result = await pool.query(`
+      SELECT
+        r.id,
+        r.provider_id,
+        r.patient_name,
+        r.rating,
+        r.comment,
+        r.is_verified,
+        r.created_at,
+        COUNT(l.review_id)::int AS likes_count
+      FROM reviews r
+      LEFT JOIN review_likes l ON l.review_id = r.id
+      WHERE r.provider_id = $1
+        AND COALESCE(r.is_hidden, FALSE) = FALSE
+      GROUP BY
+  r.id, r.provider_id, r.patient_name,
+  r.rating, r.comment, r.is_verified, r.created_at
+      ORDER BY r.created_at DESC
+    `, [providerId]);
+
+    return res.json({
+      success: true,
+      reviews: result.rows
+    });
+
+  } catch (err) {
+    console.error('Live reviews loading failed:', err.message);
+
+    return res.status(503).json({
+      success: false,
+      error: 'Could not load reviews.'
+    });
+  }
+});
+
 
 router.post('/bookings', async (req, res) => {
   let client;
@@ -439,10 +1087,7 @@ router.post('/bookings', async (req, res) => {
       const svc = await client.query('SELECT id, name, price FROM services WHERE provider_id = $1 AND LOWER(name) = LOWER($2) AND is_active = TRUE AND is_public = TRUE LIMIT 1', [provider.id, serviceName]);
       if (svc.rowCount) { serviceId = svc.rows[0].id; serviceName = svc.rows[0].name; fee = svc.rows[0].price == null ? null : safeNumber(svc.rows[0].price); }
     }
-    if (fee === null) {
-      await client.query('ROLLBACK');
-      return res.status(422).json({ success: false, error: 'This doctor or service has no consultation fee in the provider profile yet.' });
-    } // Fee is sourced from the provider's DB record, never from a client-submitted amount.
+    if (fee === null) fee = 0;// Fee is sourced from the provider's DB record, never from a client-submitted amount.
 
     let patient = null;
     if (email) {
@@ -462,10 +1107,11 @@ router.post('/bookings', async (req, res) => {
       patient = inserted.rows[0];
     }
 
-    const bookingId = id('SAINO');
-    const countRes = await client.query(`SELECT COUNT(*)::int AS n FROM provider_appointments WHERE provider_id=$1 AND appointment_date=$2::date`, [provider.id, date]);
-    const token = `Q-${String(Number(countRes.rows[0].n || 0) + 1).padStart(3, '0')}`;
-    const paymentRequired = fee > 0;
+    
+const bookingId = id('SAINO');
+const token = null; 
+
+    const paymentRequired = false;
     let paymentOrder = null;
     let paymentUnavailable = false;
     if (paymentRequired) {
@@ -617,7 +1263,7 @@ router.post('/bookings/:bookingRef/payment', patientAuth, async (req, res) => {
     await ensureTables();
     const found = await pool.query(`SELECT a.id, a.booking_ref, a.fee, a.payment_status, a.status, a.patient_id,
       p.name AS provider_name FROM provider_appointments a JOIN providers p ON p.id=a.provider_id
-      WHERE a.booking_ref=$1 LIMIT 1`, [req.params.bookingRef]);
+      WHERE a.booking_ref=$1 LIMIT 1`, [req.params.bookingRef, phone]);
     if (!found.rowCount) return res.status(404).json({ success: false, error: 'Booking was not found.' });
     const booking = found.rows[0];
     if (String(booking.patient_id) !== String(req.patient.pid)) return res.status(403).json({ success: false, error: 'This booking belongs to another patient.' });
@@ -660,52 +1306,286 @@ router.patch('/patient/notifications/:id/read', patientAuth, async (req, res) =>
     return res.status(503).json({ success: false, error: 'Notification could not be marked as read.' });
   }
 });
+// Patient sends arrival request to reception
+router.post('/bookings/:bookingRef/arrival-request', patientAuth, async (req, res) => {
+  let client;
 
-router.get('/bookings/:bookingRef', async (req, res) => {
   try {
     await ensureTables();
-    const result = await pool.query(`SELECT a.booking_ref, a.patient_id, a.visit_id, a.status, a.payment_status,
-      a.token, a.appointment_date, a.slot_time, a.consultation_type, a.doctor AS doctor_name, a.room, a.service_name,
-      a.fee AS amount, a.eta_minutes, a.updated_at,
-      p.id AS provider_id, p.name AS provider_name, COALESCE(p.address, p.address_line, '') AS provider_address,
-      COALESCE(p.city, '') AS provider_city, COALESCE(p.phone, '') AS provider_phone,
-      CASE WHEN LOWER(a.status) IN ('waiting','checked_in') THEN 1 + (
-        SELECT COUNT(*)::int FROM provider_appointments ahead WHERE ahead.provider_id=a.provider_id
-          AND ahead.appointment_date=a.appointment_date AND LOWER(ahead.status) IN ('waiting','checked_in')
-          AND ahead.created_at < a.created_at) ELSE NULL END AS queue_position,
-      (SELECT serving.token FROM provider_appointments serving WHERE serving.provider_id=a.provider_id
-        AND serving.appointment_date=a.appointment_date AND LOWER(serving.status)='in_progress'
-        ORDER BY serving.started_at DESC NULLS LAST LIMIT 1) AS now_serving_token,
-      (SELECT COUNT(*)::int FROM provider_appointments waiting WHERE waiting.provider_id=a.provider_id
-        AND waiting.appointment_date=a.appointment_date AND LOWER(waiting.status) IN ('waiting','checked_in')) AS queue_waiting
-      FROM provider_appointments a JOIN providers p ON p.id = a.provider_id WHERE a.booking_ref = $1 LIMIT 1`, [req.params.bookingRef]);
-    if (!result.rowCount) return res.status(404).json({ success: false, error: 'Booking was not found.' });
-    //if (String(result.rows[0].patient_id) !== String(req.patient.pid)) return res.status(403).json({ success: false, error: 'This booking belongs to another patient.' });
+
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    const result = await client.query(
+      `SELECT *
+       FROM provider_appointments
+       WHERE booking_ref = $1
+         AND patient_id = $2
+       LIMIT 1
+       FOR UPDATE`,
+      [req.params.bookingRef, req.patient.pid]
+    );
+
+    if (!result.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({
+        success: false,
+        error: 'Booking not found in your account.'
+      });
+    }
+
     const booking = result.rows[0];
-    res.json({ success: true, booking: { ...booking, queue: {
-      token: booking.token, position: booking.queue_position == null ? null : Number(booking.queue_position),
-      people_waiting: Number(booking.queue_waiting || 0), now_serving_token: booking.now_serving_token || null,
-      eta_minutes: booking.eta_minutes == null ? null : Number(booking.eta_minutes), room: booking.room || null
-    } } });
+    const status = String(booking.status || '').toLowerCase();
+
+    // Prevent duplicate requests and notifications
+    if (booking.arrival_status === 'pending') {
+      await client.query('ROLLBACK');
+      return res.json({
+        success: true,
+        arrival_status: 'pending',
+        message: 'Your arrival request is already waiting for reception confirmation.'
+      });
+    }
+
+    if (booking.arrival_status === 'confirmed' ||
+        ['checked_in', 'arrived', 'waiting', 'in_progress', 'completed'].includes(status)) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        success: false,
+        error: 'This appointment has already been checked in or processed.'
+      });
+    }
+
+    if (status !== 'confirmed' || booking.arrival_status !== 'not_requested') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        success: false,
+        error: 'Arrival request is not available for this appointment.'
+      });
+    }
+
+    if (booking.appointment_date instanceof Date
+      ? booking.appointment_date.toISOString().slice(0, 10) !== todayIST()
+      : String(booking.appointment_date).slice(0, 10) !== todayIST()) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        success: false,
+        error: 'You can send an arrival request only on your appointment date.'
+      });
+    }
+
+    if (booking.consultation_type === 'video') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        success: false,
+        error: 'Arrival request is only available for in-person appointments.'
+      });
+    }
+
+    await client.query(
+      `UPDATE provider_appointments
+       SET arrival_status = 'pending',
+           arrival_requested_at = NOW(),
+           updated_at = NOW()
+       WHERE id = $1`,
+      [booking.id]
+    );
+
+    await client.query(
+      `INSERT INTO provider_notifications
+       (provider_id, appointment_id, title, message)
+       VALUES ($1, $2, $3, $4)`,
+      [
+        booking.provider_id,
+        booking.id,
+        'Patient Arrival Request',
+        `${booking.patient_name} has arrived at reception. Booking ${booking.booking_ref}. Please confirm arrival or cancel the appointment.`
+      ]
+    );
+
+    await client.query(
+      `INSERT INTO patient_notifications
+       (patient_id, booking_ref, type, title, message, payload)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
+      [
+        booking.patient_id,
+        booking.booking_ref,
+        'arrival_request',
+        'Arrival request sent',
+        'Reception has been notified. Please wait for confirmation.',
+        JSON.stringify({ arrival_status: 'pending' })
+      ]
+    );
+
+    await client.query('COMMIT');
+
+    return res.json({
+      success: true,
+      arrival_status: 'pending',
+      message: 'Your arrival request has been sent to reception.'
+    });
+
   } catch (err) {
-    res.status(503).json({ success: false, error: 'Booking status is unavailable.' });
+    if (client) await client.query('ROLLBACK').catch(() => {});
+
+    console.error('Arrival request failed:', err.message);
+
+    return res.status(500).json({
+      success: false,
+      error: 'Could not send arrival request.'
+    });
+
+  } finally {
+    if (client) client.release();
   }
 });
+
+router.get('/bookings/:bookingRef', patientAuth, async (req, res) => {
+  try {
+    await ensureTables();
+
+    const result = await pool.query(`
+      SELECT
+        a.booking_ref, a.patient_id, a.visit_id,
+        a.status, a.payment_status, a.token,
+        a.appointment_date, a.slot_time, a.consultation_type,
+        a.doctor AS doctor_name, a.room, a.service_name,
+        a.fee AS amount, a.eta_minutes, a.updated_at,
+a.arrival_status, a.arrival_requested_at, a.arrival_reviewed_at,
+EXISTS (
+  SELECT 1
+  FROM reviews r
+  WHERE r.appointment_id = a.id
+) AS has_review,
+        p.id AS provider_id,
+        p.name AS provider_name,
+        COALESCE(p.address, p.address_line, '') AS provider_address,
+        COALESCE(p.city, '') AS provider_city,
+        COALESCE(p.phone, '') AS provider_phone,
+
+        CASE
+          WHEN LOWER(a.status) IN ('waiting', 'checked_in')
+          THEN 1 + (
+            SELECT COUNT(*)::int
+            FROM provider_appointments ahead
+            WHERE ahead.provider_id = a.provider_id
+              AND ahead.appointment_date = a.appointment_date
+              AND LOWER(ahead.status) IN ('waiting', 'checked_in')
+              AND ahead.created_at < a.created_at
+          )
+          ELSE NULL
+        END AS queue_position,
+
+        (
+          SELECT serving.token
+          FROM provider_appointments serving
+          WHERE serving.provider_id = a.provider_id
+            AND serving.appointment_date = a.appointment_date
+            AND LOWER(serving.status) = 'in_progress'
+          ORDER BY serving.started_at DESC NULLS LAST
+          LIMIT 1
+        ) AS now_serving_token,
+
+        (
+          SELECT COUNT(*)::int
+          FROM provider_appointments waiting
+          WHERE waiting.provider_id = a.provider_id
+            AND waiting.appointment_date = a.appointment_date
+            AND LOWER(waiting.status) IN ('waiting', 'checked_in')
+        ) AS queue_waiting
+
+      FROM provider_appointments a
+      JOIN providers p ON p.id = a.provider_id
+      WHERE a.booking_ref = $1
+        AND a.patient_id = $2
+      LIMIT 1
+    `, [req.params.bookingRef, req.patient.pid]);
+
+    if (!result.rowCount) {
+      return res.status(404).json({
+        success: false,
+        error: 'Booking not found in your patient account.'
+      });
+    }
+
+    const booking = result.rows[0];
+
+    return res.json({
+      success: true,
+      booking: {
+        ...booking,
+        queue: {
+          token: booking.token,
+          position: booking.queue_position == null
+            ? null
+            : Number(booking.queue_position),
+          people_waiting: Number(booking.queue_waiting || 0),
+          now_serving_token: booking.now_serving_token || null,
+          eta_minutes: booking.eta_minutes == null
+            ? null
+            : Number(booking.eta_minutes),
+          room: booking.room || null
+        }
+      }
+    });
+
+  } catch (err) {
+    console.error('Booking status lookup failed:', err.message);
+
+    return res.status(503).json({
+      success: false,
+      error: 'Booking status is unavailable.'
+    });
+  }
+});
+
 
 router.get('/qr/:code', async (req, res) => {
   try {
     await ensureTables();
-    const result = await pool.query(`SELECT q.*, p.name AS provider_name, p.verification_status, p.is_published
-      FROM provider_qr_codes q JOIN providers p ON p.id = q.provider_id WHERE q.code = $1 LIMIT 1`, [req.params.code]);
-    if (!result.rowCount || result.rows[0].status !== 'active' || result.rows[0].verification_status !== 'verified' || !result.rows[0].is_published) {
+    const result = await pool.query(`
+  SELECT q.*,
+         p.name AS provider_name,
+         p.verification_status,
+         p.is_published,
+         p.status AS provider_status
+  FROM provider_qr_codes q
+  JOIN providers p ON p.id = q.provider_id
+  WHERE q.code = $1
+  LIMIT 1
+`, [req.params.code]);
+
+if (
+  !result.rowCount ||
+  result.rows[0].status !== 'active' ||
+  result.rows[0].verification_status !== 'verified' ||
+  !result.rows[0].is_published ||
+  ['suspended', 'rejected', 'inactive'].includes(
+    String(result.rows[0].provider_status || 'active').toLowerCase()
+  )
+) {
       return res.status(410).send('<!doctype html><html><meta charset="utf-8"><title>SAINO QR unavailable</title><body style="font-family:Arial;padding:40px"><h2>This SAINO QR code is unavailable</h2><p>The provider has not published its listing or this QR code has been disabled.</p><a href="/">Return to SAINO Health</a></body></html>');
     }
     const qr = result.rows[0];
     await pool.query('UPDATE provider_qr_codes SET total_scans = total_scans + 1 WHERE id = $1', [qr.id]);
     const visitorHash = crypto.createHash('sha256').update(`${req.ip || ''}|${req.get('user-agent') || ''}|${qr.id}`).digest('hex');
     await pool.query(`INSERT INTO provider_qr_scans(qr_code_id, visitor_hash) VALUES($1,$2)
-      ON CONFLICT (qr_code_id, visitor_hash) WHERE visitor_hash IS NOT NULL DO NOTHING`, [qr.id, visitorHash]);
-    return res.redirect(`/?providerId=${encodeURIComponent(qr.provider_id)}&source=qr&qr=${encodeURIComponent(qr.code)}#marketplace`);
+    ON CONFLICT (qr_code_id, visitor_hash) WHERE visitor_hash IS NOT NULL DO NOTHING`, [qr.id, visitorHash]);
+          
+      const frontendUrl = (
+        process.env.FRONTEND_URL ||
+        'https://saino-healthcare-kappa.vercel.app'
+      ).replace(/\/+$/, '');
+
+      const bookingUrl = new URL(frontendUrl + '/');
+
+      bookingUrl.searchParams.set('providerId', String(qr.provider_id));
+      bookingUrl.searchParams.set('source', 'qr');
+      bookingUrl.searchParams.set('qr', qr.code);
+      bookingUrl.hash = 'marketplace';
+
+      return res.redirect(302, bookingUrl.toString());
+
   } catch (err) {
     console.error('QR redirect failed:', err.message);
     res.status(503).send('SAINO QR could not be opened. Please try again later.');

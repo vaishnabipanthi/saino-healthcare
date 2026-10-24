@@ -476,14 +476,34 @@ router.get('/qr', async (_req, res) => {
   }
 });
 
-router.post('/qr', requireRole('superadmin','admin','operations'), async (req, res) => {
+  if (String((req.body || {}).label || '').trim().toLowerCase() === 'booking qr') {
+    return res.status(403).json({
+      success: false,
+      error: 'Booking QR can only be generated from the Provider Dashboard.'
+    });
+  }
   const providerId = String((req.body || {}).provider_id || '').trim();
   const label = String((req.body || {}).label || 'Reception QR').trim().slice(0,160);
   const branch = String((req.body || {}).branch_name || '').trim().slice(0,160) || null;
   if (!providerId) return res.status(400).json({ success: false, error: 'Select a provider first.' });
   try {
-    const p = await pool.query('SELECT id FROM providers WHERE id::text=$1 LIMIT 1', [providerId]);
-    if (!p.rowCount) return res.status(404).json({ success: false, error: 'Provider not found.' });
+       const p = await pool.query(`
+          SELECT id
+          FROM providers
+          WHERE id::text = $1
+            AND verification_status = 'verified'
+            AND is_published = TRUE
+            AND LOWER(COALESCE(status, 'active'))
+                NOT IN ('suspended', 'rejected', 'inactive')
+          LIMIT 1
+        `, [providerId]);
+
+        if (!p.rowCount) {
+          return res.status(403).json({
+            success: false,
+            error: 'Only approved and active providers can have a QR code.'
+          });
+        }
     const code = publicId('QR');
     const result = await pool.query(`INSERT INTO provider_qr_codes(provider_id,code,label,branch_name,destination_url,created_by)
       VALUES($1,$2,$3,$4,$5,$6) RETURNING *`, [p.rows[0].id, code, label, branch, `/api/public/qr/${code}`, req.admin.id]);
@@ -494,16 +514,58 @@ router.post('/qr', requireRole('superadmin','admin','operations'), async (req, r
     res.status(500).json({ success: false, error: 'Could not create QR code.' });
   }
 });
-
 router.patch('/qr/:id/status', requireRole('superadmin','admin','operations'), async (req, res) => {
   const status = String((req.body || {}).status || '').toLowerCase();
-  if (!['active','disabled'].includes(status)) return res.status(400).json({ success: false, error: 'Status must be active or disabled.' });
+
+  if (!['active', 'disabled'].includes(status)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Status must be active or disabled.'
+    });
+  }
+
   try {
-    const result = await pool.query('UPDATE provider_qr_codes SET status=$1,updated_at=NOW() WHERE id=$2 RETURNING *', [status, req.params.id]);
-    if (!result.rowCount) return res.status(404).json({ success: false, error: 'QR code not found.' });
+    const result = await pool.query(`
+      UPDATE provider_qr_codes q
+      SET status = $1::text,
+          updated_at = NOW()
+      FROM providers p
+      WHERE q.id = $2
+        AND p.id = q.provider_id
+        AND (
+          $1::text = 'disabled'
+          OR (
+            p.verification_status = 'verified'
+            AND p.is_published = TRUE
+            AND LOWER(COALESCE(p.status, 'active'))
+                NOT IN ('suspended', 'rejected', 'inactive')
+          )
+        )
+      RETURNING q.*
+    `, [status, req.params.id]);
+
+    if (!result.rowCount) {
+      return res.status(403).json({
+        success: false,
+        error: 'QR not found or provider is not approved for activation.'
+      });
+    }
+
     await writeAudit(req, `qr_${status}`, 'qr_code', req.params.id, {});
-    res.json({ success: true, qr: result.rows[0] });
-  } catch (err) { res.status(500).json({ success: false, error: 'Could not update QR code.' }); }
+
+    return res.json({
+      success: true,
+      qr: result.rows[0]
+    });
+
+  } catch (err) {
+    console.error('Admin QR status update failed:', err.message);
+
+    return res.status(500).json({
+      success: false,
+      error: 'Could not update QR code.'
+    });
+  }
 });
 
 router.get('/notifications', async (_req, res) => {

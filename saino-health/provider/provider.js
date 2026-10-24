@@ -506,8 +506,16 @@
     const active = state.appointmentFilter === 'all' ? all : all.filter(a => String(a.status||'').toLowerCase() === state.appointmentFilter);
     const filters = [ ['all','All'],['pending','Pending'],['confirmed','Confirmed'],['checked_in','Checked in'],['waiting','Waiting'],['in_progress','In progress'],['completed','Completed'],['cancelled','Cancelled'] ];
     const tabs = filters.map(([id,label])=>`<button class="filter-tab rounded-lg px-3 py-2 text-xs font-bold ${state.appointmentFilter===id?'bg-slate-900 text-white':'bg-white border text-slate-600'}" data-filter="${id}">${label} <span class="opacity-70">(${id==='all'?all.length:all.filter(a=>String(a.status||'').toLowerCase()===id).length})</span></button>`).join('');
-    const rows = active.map(a=>`<tr class="border-b border-slate-100"><td class="p-3"><strong>${safe(a.booking_ref||'—')}</strong><div class="text-[10px] text-slate-500">PID ${safe(a.patient_id||'—')} · Visit ${safe(a.visit_id||'not started')}</div><div class="text-[10px] text-slate-400">Token ${safe(a.token||'—')}</div></td><td class="p-3"><strong>${safe(a.patient_name||'—')}</strong><div class="text-[10px] text-slate-500">${safe(a.patient_phone||'')} ${safe(a.patient_email||'')}</div></td><td class="p-3">${safe(a.doctor||'Not assigned')}<div class="text-[10px] text-slate-500">${safe(a.service_name||'—')} · ${safe(a.room||'Room not assigned')}</div></td><td class="p-3">${safe(a.source||'—')}<div class="text-[10px] text-slate-500">${safe(a.consultation_type||'in_person')}</div></td><td class="p-3">${safe(a.appointment_date||'—')}<div class="text-[10px] text-slate-500">${safe(a.slot_time||'Time not set')}</div></td><td class="p-3">${safe(a.payment_status||'pending')}<div class="text-[10px] text-slate-500">Fee ${a.fee==null?'—':'INR '+Number(a.fee).toLocaleString()}</div></td><td class="p-3"><div class="flex gap-1 flex-wrap">${['confirmed','checked_in','waiting','in_progress','completed','cancelled','no_show'].map(status=>`<button class="appt-status px-2 py-1 border rounded text-[10px] font-bold" data-id="${safe(a.id)}" data-status="${status}">${status.replace(/_/g,' ')}</button>`).join('')}</div></td></tr>`).join('');
-    return `<div class="flex items-center justify-between flex-wrap gap-3 mb-5"><div><h1 class="text-xl font-bold">Appointments & patient records</h1><p class="text-xs text-slate-500 mt-1">Website, QR and reception entries use the same PostgreSQL booking table.</p></div><div><button id="refreshProviderData" class="px-3 py-2 border rounded-lg text-xs font-bold">Refresh</button> <button class="modal-trigger px-3 py-2 bg-slate-900 text-white rounded-lg text-xs font-bold" data-modal="token">+ Reception booking</button></div></div><div class="flex gap-2 flex-wrap mb-4">${tabs}</div><div class="bg-white border rounded-xl overflow-auto"><table class="w-full text-left text-xs min-w-[1000px]"><thead class="bg-slate-50 text-slate-500 uppercase text-[10px]"><tr><th class="p-3">Booking / Patient IDs</th><th class="p-3">Patient</th><th class="p-3">Care / Doctor</th><th class="p-3">Source / Type</th><th class="p-3">Date / Time</th><th class="p-3">Payment</th><th class="p-3">Update status</th></tr></thead><tbody>${rows||'<tr><td colspan="7" class="p-8 text-center text-slate-500">No matching bookings saved in PostgreSQL. Use reception booking or the patient website to create a test booking.</td></tr>'}</tbody></table></div>`;
+    const rows = active.map(a=>`<tr class="border-b border-slate-100"><td class="p-3"><strong>${safe(a.booking_ref||'—')}</strong><div class="text-[10px] text-slate-500">PID ${safe(a.patient_id||'—')} · Visit ${safe(a.visit_id||'not started')}</div><div class="text-[10px] text-slate-400">Token ${safe(a.token||'—')}</div></td><td class="p-3"><strong>${safe(a.patient_name||'—')}</strong><div class="text-[10px] text-slate-500">${safe(a.patient_phone||'')} ${safe(a.patient_email||'')}</div></td><td class="p-3">${safe(a.doctor||'Not assigned')}<div class="text-[10px] text-slate-500">${safe(a.service_name||'—')} · ${safe(a.room||'Room not assigned')}</div></td><td class="p-3">${safe(a.source||'—')}<div class="text-[10px] text-slate-500">${safe(a.consultation_type||'in_person')}</div></td><td class="p-3">${safe(a.appointment_date||'—')}<div class="text-[10px] text-slate-500">${safe(a.slot_time||'Time not set')}</div></td><td class="p-3">
+  <div class="mb-1">${statusBadge(a.status || 'pending')}</div>
+  <div class="text-[10px] text-slate-500">
+    Payment: ${safe(a.payment_status || 'pending')}
+  </div>
+  <div class="text-[10px] text-slate-500">
+    Fee ${a.fee == null ? '—' : 'INR ' + Number(a.fee).toLocaleString('en-IN')}
+  </div>
+</td><td class="p-3"><div class="flex gap-1 flex-wrap">${['confirmed','checked_in','waiting','in_progress','completed','cancelled','no_show'].map(status=>`<button class="appt-status px-2 py-1 border rounded text-[10px] font-bold" data-id="${safe(a.id)}" data-status="${status}">${status.replace(/_/g,' ')}</button>`).join('')}</div></td></tr>`).join('');
+    return `<div class="flex items-center justify-between flex-wrap gap-3 mb-5"><div><h1 class="text-xl font-bold">Appointments & patient records</h1><p class="text-xs text-slate-500 mt-1">Website, QR and reception entries use the same PostgreSQL booking table.</p></div><div><button id="refreshProviderData" class="px-3 py-2 border rounded-lg text-xs font-bold">Refresh</button> <button class="modal-trigger px-3 py-2 bg-slate-900 text-white rounded-lg text-xs font-bold" data-modal="token">+ Reception booking</button></div></div><div class="flex gap-2 flex-wrap mb-4">${tabs}</div><div class="bg-white border rounded-xl overflow-auto"><table class="w-full text-left text-xs min-w-[1000px]"><thead class="bg-slate-50 text-slate-500 uppercase text-[10px]"><tr><th class="p-3">Booking / Patient IDs</th><th class="p-3">Patient</th><th class="p-3">Care / Doctor</th><th class="p-3">Source / Type</th><th class="p-3">Date / Time</th><th class="p-3">Booking / Payment Status</th><th class="p-3">Update status</th></tr></thead><tbody>${rows||'<tr><td colspan="7" class="p-8 text-center text-slate-500">No matching bookings saved in PostgreSQL. Use reception booking or the patient website to create a test booking.</td></tr>'}</tbody></table></div>`;
   }
 
 
@@ -546,22 +554,273 @@
     const rows = state.reviews.map(r=>`<article class="border border-slate-200 rounded-xl p-4"><div class="flex items-start justify-between gap-3"><div><strong class="text-sm">${safe(r.patient_name||'Patient')}</strong><div class="text-[11px] text-slate-500">${r.created_at?safe(new Date(r.created_at).toLocaleString()):'Date not provided'} · ${r.verified_visit?'Verified visit':'Visit not verified'}</div></div><span class="text-amber-600 font-bold">${Number(r.rating||0).toFixed(1)} / 5</span></div><p class="text-xs text-slate-700 mt-3">${safe(r.comment||'No comment')}</p>${r.response?`<div class="mt-3 p-3 bg-slate-50 rounded-lg text-xs"><strong>Provider response</strong><p class="mt-1">${safe(r.response)}</p></div>`:''}<form class="review-reply-form mt-3 flex gap-2" data-review-id="${safe(r.id)}"><input name="response" required maxlength="2000" value="" placeholder="Write a response…" class="flex-1 px-3 py-2 border rounded-lg text-xs"><button class="px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-bold">Save reply</button></form></article>`).join('');
     return `<div class="mb-5"><h1 class="text-xl font-bold">Reviews & feedback</h1><p class="text-xs text-slate-500 mt-1">Reviews and provider replies are read and stored in PostgreSQL. Reviews are not generated automatically after a visit.</p></div><div class="space-y-3">${rows||'<div class="bg-white border rounded-xl p-8 text-center text-sm text-slate-500">No reviews have been recorded for this provider.</div>'}</div>`;
   }
+  
+function renderNotifications() {
+  const rows = state.notifications.map(n => {
+    const appointment = state.appointments.find(
+      a => String(a.id) === String(n.appointment_id)
+    );
 
+    const pendingArrival =
+      n.title === 'Patient Arrival Request' &&
+      appointment?.arrival_status === 'pending' &&
+      String(appointment?.status || '').toLowerCase() === 'confirmed';
 
-  function renderNotifications() {
-    const rows = state.notifications.map(n => `<article class="notification ${n.is_read ? '' : 'unread'}"><div class="flex-1"><strong>${safe(n.title)}</strong><p>${safe(n.message)}</p><time>${n.created_at ? new Date(n.created_at).toLocaleString() : ''}</time></div>${n.is_read ? '<span class="text-[10px] text-slate-400">Read</span>' : `<button class="provider-notification-read rounded border px-3 py-1 text-[10px] font-bold" data-notification-id="${safe(n.id)}">Mark read</button>`}</article>`).join('');
-    return `<div class="mb-5"><h1 class="text-xl font-bold">Notifications</h1><p class="text-xs text-slate-500 mt-1">Updates saved for this provider account.</p></div><div class="bg-white border rounded-xl p-5"><div class="flex justify-between items-center mb-3"><strong class="text-sm">Account notifications</strong><span class="text-xs text-slate-500">${state.notifications.filter(n => !n.is_read).length} unread</span></div>${rows || '<p class="py-6 text-center text-sm text-slate-500">No notifications yet.</p>'}</div><div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mt-4 text-xs text-amber-900"><strong>Email and SMS delivery</strong><p class="mt-1">Email, SMS and WhatsApp gateways are not configured, so external reminders are not sent.</p></div>`;
+    return `
+      <article class="notification ${n.is_read ? '' : 'unread'}">
+        <div class="flex-1">
+          <strong>${safe(n.title)}</strong>
+          <p>${safe(n.message)}</p>
+          <time>${n.created_at ? new Date(n.created_at).toLocaleString() : ''}</time>
+
+          ${pendingArrival ? `
+            <div class="mt-3 flex flex-wrap gap-2">
+              <button
+                class="arrival-confirm rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white"
+                data-id="${safe(appointment.id)}">
+                Confirm Arrival
+              </button>
+
+              <button
+                class="arrival-cancel rounded-lg bg-red-700 px-3 py-2 text-xs font-bold text-white"
+                data-id="${safe(appointment.id)}">
+                Cancel Appointment
+              </button>
+            </div>
+          ` : ''}
+        </div>
+
+        ${pendingArrival ? '' : n.is_read
+          ? '<span class="text-[10px] text-slate-400">Read</span>'
+          : `<button class="provider-notification-read rounded border px-3 py-1 text-[10px] font-bold" data-notification-id="${safe(n.id)}">Mark read</button>`
+        }
+      </article>
+    `;
+  }).join('');
+
+  return `
+    <div class="mb-5">
+      <h1 class="text-xl font-bold">Notifications</h1>
+      <p class="text-xs text-slate-500 mt-1">
+        Updates saved for this provider account.
+      </p>
+    </div>
+
+    <div class="bg-white border rounded-xl p-5">
+      <div class="flex justify-between items-center mb-3">
+        <strong class="text-sm">Account notifications</strong>
+        <span class="text-xs text-slate-500">
+          ${state.notifications.filter(n => !n.is_read).length} unread
+        </span>
+      </div>
+      ${rows || '<p class="py-6 text-center text-sm text-slate-500">No notifications yet.</p>'}
+    </div>
+  `;
+}
+
+  function getProviderQrLink(q) {
+    return `${API_ORIGIN}/api/public/qr/${encodeURIComponent(q.code)}`;
   }
 
-
-  function renderQRMarketplace() {
-    const rows = state.qrCodes.map(q=>{
-      const link = `${API_ORIGIN}/api/public/qr/${encodeURIComponent(q.code)}`;
-      const image = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(link)}`;
-      return `<div class="bg-white border rounded-xl p-4 flex flex-col sm:flex-row gap-4"><img src="${image}" alt="QR code for ${safe(q.label)}" class="w-36 h-36 border rounded-lg object-contain"><div class="flex-1"><div class="flex flex-wrap items-center gap-2"><h3 class="font-bold text-sm">${safe(q.label)}</h3><span class="text-[10px] px-2 py-1 rounded ${q.status==='active'?'bg-emerald-100 text-emerald-800':'bg-slate-100 text-slate-700'}">${safe(q.status)}</span></div><p class="text-xs text-slate-500 mt-1">${safe(q.branch_name||'Branch not specified')} · Code ${safe(q.code)}</p><p class="text-xs mt-2">Total scans: <strong>${Number(q.total_scans||0)}</strong> · Unique tracked visitors: <strong>${Number(q.unique_scans||0)}</strong> · QR bookings since created: <strong>${Number(q.attributed_bookings||0)}</strong></p><a class="text-xs text-blue-700 underline break-all block mt-2" href="${link}" target="_blank" rel="noopener">${link}</a><div class="flex gap-2 mt-3"><button class="qr-status px-3 py-2 border rounded text-xs font-bold" data-id="${safe(q.id)}" data-status="${q.status==='active'?'disabled':'active'}">${q.status==='active'?'Deactivate':'Activate'} QR</button><button class="px-3 py-2 border rounded text-xs font-bold" onclick="window.print()">Print page</button></div></div></div>`;
-    }).join('');
-    return `<div class="mb-5"><h1 class="text-xl font-bold">Reception QR management</h1><p class="text-xs text-slate-500 mt-1">Scans and bookings are tracked separately. QR destination resolves to this provider’s public listing only when it is published.</p></div><form id="createProviderQrForm" class="bg-white border rounded-xl p-4 mb-5 flex flex-wrap gap-3 items-end"><div class="flex-1 min-w-[180px]"><label class="block text-xs font-bold mb-1">QR label</label><input name="label" required maxlength="160" placeholder="Main reception" class="w-full px-3 py-2 border rounded-lg text-xs"></div><div class="flex-1 min-w-[180px]"><label class="block text-xs font-bold mb-1">Branch / location</label><input name="branch_name" maxlength="160" placeholder="Main branch" class="w-full px-3 py-2 border rounded-lg text-xs"></div><button class="px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-bold">Generate QR</button></form><div class="space-y-3">${rows||'<div class="bg-white border rounded-xl p-8 text-center text-slate-500 text-sm">No QR codes saved yet. Generate a named QR for reception or a branch.</div>'}</div>`;
+  function getProviderQrImage(q) {
+    return `https://api.qrserver.com/v1/create-qr-code/?size=600x600&format=png&data=${encodeURIComponent(getProviderQrLink(q))}`;
   }
+
+  async function copyBookingQrLink(url) {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(url);
+    } else {
+      const input = document.createElement('textarea');
+      input.value = url;
+      input.style.position = 'fixed';
+      input.style.opacity = '0';
+      document.body.appendChild(input);
+      input.select();
+      const copied = document.execCommand('copy');
+      input.remove();
+      if (!copied) throw new Error('Copy is unavailable on this browser.');
+    }
+  }
+
+  async function downloadBookingQr(q) {
+    const response = await fetch(getProviderQrImage(q));
+    if (!response.ok) throw new Error('Could not download QR image.');
+
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+
+    try {
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = `SAINO-Booking-QR-${q.code}.png`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+    } finally {
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    }
+  }
+
+  async function handleBookingQrAction(action, q) {
+    const url = getProviderQrLink(q);
+    const title = state.provider.name || 'SAINO Healthcare';
+
+    if (action === 'copy') {
+      await copyBookingQrLink(url);
+      alert('Booking link copied!');
+      return;
+    }
+
+    if (action === 'whatsapp') {
+      const message = `Book an appointment at ${title}:\n${url}`;
+      window.open(
+        `https://wa.me/?text=${encodeURIComponent(message)}`,
+        '_blank',
+        'noopener,noreferrer'
+      );
+      return;
+    }
+
+    if (action === 'download') {
+      await downloadBookingQr(q);
+      return;
+    }
+
+    if (action === 'share') {
+      if (navigator.share) {
+        await navigator.share({
+          title: `${title} Booking QR`,
+          text: `Book your appointment directly at ${title}.`,
+          url
+        });
+      } else {
+        await copyBookingQrLink(url);
+        alert('Native sharing unavailable. Booking link copied!');
+      }
+    }
+  }
+
+      
+    function renderQRMarketplace() {
+      const p = state.provider || {};
+
+      const approved =
+        String(p.verification_status || '').toLowerCase() === 'verified' &&
+        p.is_published === true;
+
+      const bookingQr = state.qrCodes.find(
+        q => q.label === 'Booking QR'
+      );
+
+      const rows = state.qrCodes.map(q => {
+        const link = `${API_ORIGIN}/api/public/qr/${encodeURIComponent(q.code)}`;
+
+        const image =
+          `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(link)}`;
+
+        const isBookingQr = q.label === 'Booking QR';
+
+        return `
+          <div class="bg-white border rounded-xl p-5 mb-4">
+            <div class="flex flex-col sm:flex-row gap-5">
+
+              <img
+                src="${image}"
+                alt="Booking QR"
+                class="w-40 h-40 border rounded-lg object-contain"
+              >
+
+              <div class="flex-1 min-w-0">
+                <h3 class="font-bold text-sm">${safe(q.label)}</h3>
+
+                <p class="text-xs text-slate-500 mt-1">
+                  Status: ${safe(q.status)}
+                </p>
+
+                <p class="text-xs mt-2">
+                  Total scans: ${Number(q.total_scans || 0)}
+                </p>
+
+                <a href="${safe(link)}"
+                  target="_blank"
+                  rel="noopener"
+                  class="block mt-2 text-xs text-blue-700 underline break-all">
+                  ${safe(link)}
+                </a>
+
+                <div class="flex flex-wrap gap-2 mt-4">
+
+                  <button type="button"
+                    class="qr-view px-3 py-2 bg-slate-900 text-white rounded text-xs font-bold"
+                    data-id="${safe(q.id)}">
+                    View My QR
+                  </button>
+
+                  <button type="button"
+                    class="qr-status px-3 py-2 border rounded text-xs font-bold"
+                    data-id="${safe(q.id)}"
+                    data-status="${q.status === 'active' ? 'disabled' : 'active'}">
+                    ${q.status === 'active' ? 'Deactivate' : 'Activate'} QR
+                  </button>
+
+                </div>
+
+                ${isBookingQr
+                  ? '<p class="mt-3 text-xs text-emerald-700 font-semibold">Main hospital booking QR</p>'
+                  : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div class="mb-5">
+          <h1 class="text-xl font-bold">QR Management</h1>
+          <p class="text-xs text-slate-500 mt-1">
+            Patients can scan your QR to open your hospital booking page.
+          </p>
+        </div>
+
+        ${!approved ? `
+          <div class="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-5">
+            <h3 class="font-bold text-sm text-amber-900">
+              Admin approval required
+            </h3>
+            <p class="text-xs text-amber-800 mt-2">
+              Booking QR generation becomes available after your
+              provider profile is verified and published.
+            </p>
+          </div>
+        ` : !bookingQr ? `
+          <form id="createProviderQrForm"
+            class="bg-white border rounded-xl p-5 mb-5">
+
+            <h3 class="font-bold text-sm">Generate Hospital Booking QR</h3>
+
+            <p class="text-xs text-slate-500 mt-2">
+              One permanent main booking QR will be created for your hospital.
+            </p>
+
+            <button type="submit"
+              class="mt-4 px-4 py-2 bg-red-700 text-white rounded-lg text-xs font-bold">
+              Generate Booking QR
+            </button>
+
+          </form>
+        ` : `
+          <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-5">
+            <p class="text-sm font-bold text-emerald-800">
+              Your Booking QR is already generated.
+            </p>
+          </div>
+        `}
+
+        <div class="space-y-3">
+          ${rows || '<p class="text-xs text-slate-500">No QR generated yet.</p>'}
+        </div>
+      `;
+    }
 
 
   function renderReports() {
@@ -934,6 +1193,115 @@
         await loadData(); state.page = 'reviews'; render();
       } catch (error) { alert(error.message); }
     }));
+
+    
+    document.querySelectorAll('.qr-view').forEach(button => {
+      button.addEventListener('click', () => {
+        const q = state.qrCodes.find(
+          item => String(item.id) === String(button.dataset.id)
+        );
+
+        if (!q) {
+          alert('QR record not found.');
+          return;
+        }
+
+        const url = getProviderQrLink(q);
+        const image = getProviderQrImage(q);
+
+        const overlay = document.createElement('div');
+        overlay.className =
+          'fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4';
+
+        overlay.innerHTML = `
+          <div role="dialog" aria-modal="true"
+            aria-label="Hospital Booking QR"
+            class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+
+            <div class="flex items-center justify-between gap-3">
+              <h2 class="text-lg font-black text-slate-900">
+                My Booking QR
+              </h2>
+
+              <button type="button" data-qr-close
+                class="rounded-lg border px-3 py-2 text-xs font-bold">
+                Close
+              </button>
+            </div>
+
+            <p class="mt-2 text-xs text-slate-500">
+              ${safe(state.provider.name || 'SAINO Provider')}
+            </p>
+
+            <img src="${safe(image)}"
+              alt="Scan hospital booking QR"
+              class="mx-auto mt-5 h-56 w-56 rounded-xl border object-contain">
+
+            <p class="mt-3 text-center text-xs font-bold text-slate-600">
+              Scan to book an appointment
+            </p>
+
+            <p class="mt-2 break-all text-center text-[10px] text-slate-500">
+              ${safe(url)}
+            </p>
+
+            <div class="mt-5 grid grid-cols-2 gap-2">
+              <button type="button" data-qr-action="download"
+                class="rounded-lg bg-slate-900 px-3 py-3 text-xs font-bold text-white">
+                Download PNG
+              </button>
+
+              <button type="button" data-qr-action="share"
+                class="rounded-lg border px-3 py-3 text-xs font-bold">
+                Share
+              </button>
+
+              <button type="button" data-qr-action="whatsapp"
+                class="rounded-lg bg-emerald-600 px-3 py-3 text-xs font-bold text-white">
+                WhatsApp
+              </button>
+
+              <button type="button" data-qr-action="copy"
+                class="rounded-lg border px-3 py-3 text-xs font-bold">
+                Copy Link
+              </button>
+            </div>
+          </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        overlay.querySelector('[data-qr-close]').addEventListener(
+          'click',
+          () => overlay.remove()
+        );
+
+        overlay.addEventListener('click', event => {
+          if (event.target === overlay) overlay.remove();
+        });
+
+        overlay.querySelectorAll('[data-qr-action]').forEach(actionButton => {
+          actionButton.addEventListener('click', async () => {
+            actionButton.disabled = true;
+
+            try {
+              await handleBookingQrAction(
+                actionButton.dataset.qrAction,
+                q
+              );
+            } catch (error) {
+              if (error.name !== 'AbortError') {
+                alert(error.message || 'QR action failed.');
+              }
+            } finally {
+              actionButton.disabled = false;
+            }
+          });
+        });
+      });
+    });
+
+
     const createProviderQrForm = document.getElementById('createProviderQrForm');
     if (createProviderQrForm) createProviderQrForm.addEventListener('submit', async event => {
       event.preventDefault();
@@ -950,7 +1318,14 @@
     document.querySelectorAll('.qr-status').forEach(btn => btn.addEventListener('click', async () => {
       try {
         const response = await apiFetch(`${API_BASE}/qr/${encodeURIComponent(btn.dataset.id)}/status`, {
-          method: 'PATCH', body: JSON.stringify({ status: btn.dataset.status })
+          
+method: 'PATCH',
+body: JSON.stringify(
+  btn.dataset.status === 'confirmed'
+    ? { action: 'accept' }
+    : { status: btn.dataset.status }
+)
+
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok || !data.success) throw new Error(data.error || 'Could not update QR status.');
@@ -976,6 +1351,97 @@
       state.activeModal = 'service';
       render();
     }));
+    
+document.querySelectorAll('.arrival-confirm').forEach(button => {
+  button.addEventListener('click', async () => {
+    const appointmentId = button.dataset.id;
+
+    if (!confirm('Confirm that this patient has arrived at reception?')) return;
+
+    button.disabled = true;
+    button.textContent = 'Confirming...';
+
+    try {
+      const response = await apiFetch(
+        `${API_BASE}/appointments/${encodeURIComponent(appointmentId)}/confirm-arrival`,
+        {
+          method: 'PATCH',
+          body: '{}'
+        }
+      );
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Could not confirm patient arrival.');
+      }
+
+      state.page = 'notifications';
+      await loadData();
+
+      alert('Patient arrival confirmed successfully.');
+    } catch (error) {
+      alert(error.message || 'Arrival confirmation failed.');
+      button.disabled = false;
+      button.textContent = 'Confirm Arrival';
+    }
+  });
+});
+
+
+document.querySelectorAll('.arrival-cancel').forEach(button => {
+  button.addEventListener('click', async () => {
+    const appointmentId = button.dataset.id;
+
+    const reason = prompt(
+      'Enter the reason for cancelling this appointment:'
+    );
+
+    if (reason === null) return;
+
+    if (!reason.trim()) {
+      alert('Cancellation reason is required.');
+      return;
+    }
+
+    if (!confirm('Are you sure you want to cancel this appointment?')) {
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = 'Cancelling...';
+
+    try {
+      const response = await apiFetch(
+        `${API_BASE}/appointments/${encodeURIComponent(appointmentId)}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            status: 'cancelled',
+            reason: reason.trim()
+          })
+        }
+      );
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Could not cancel appointment.');
+      }
+
+      state.page = 'notifications';
+      await loadData();
+
+      alert('Appointment cancelled successfully.');
+
+    } catch (error) {
+      alert(error.message || 'Cancellation failed.');
+      button.disabled = false;
+      button.textContent = 'Cancel Appointment';
+    }
+  });
+});
+
     document.querySelectorAll('.provider-notification-read').forEach(button => button.addEventListener('click', async () => {
       try {
         const response = await apiFetch(`${API_BASE}/notifications/${encodeURIComponent(button.dataset.notificationId)}/read`, { method: 'PATCH', body: '{}' });

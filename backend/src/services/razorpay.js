@@ -34,4 +34,16 @@ async function fetchCapturedPayment(paymentId) {
   if (!response.ok) throw Object.assign(new Error(data.error?.description || 'Could not verify Razorpay payment.'), { status: 502 });
   return data;
 }
-module.exports = { get keyId() { return keyId(); }, createOrder, verifySignature, fetchCapturedPayment };
+async function refund(paymentId, amount) {
+  requireKeys();
+  if (!paymentId || !Number.isInteger(amount) || amount <= 0) throw new Error('Invalid refund request');
+  const response = await fetch(`https://api.razorpay.com/v1/payments/${encodeURIComponent(paymentId)}/refund`, {
+    method: 'POST', headers: { Authorization: basicAuth(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ amount, speed: 'normal' })
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.id) throw Object.assign(new Error(data.error?.description || 'Refund request failed'), { status: 502 });
+  return data;
+}
+
+module.exports = { refund, get keyId() { return keyId(); }, createOrder, verifySignature, fetchCapturedPayment };
