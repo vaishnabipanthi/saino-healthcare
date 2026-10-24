@@ -230,7 +230,7 @@ function directoryCardHTML(p, index, categoryType) {
   const meta = DIRECTORY_META[categoryType] || DIRECTORY_META.hospital;
   const id = p.id || p.name || "provider";
   const name = p.name || meta.title.slice(0, -1);
-  const imgSrc = p.image || p.cover_image_url || "assets/logo.png";
+  const imgSrc = p.cover_image_url || p.image || p.logo_url || p.logo || "assets/logo.png";
   const rating = p.rating == null ? "No rating yet" : Number(p.rating).toFixed(1);
   const location = p.location || p.address || "Address not provided";
   const opd = p.opd || p.openingHours || "Mon–Sat, 9:30 AM – 6:00 PM";
@@ -243,7 +243,7 @@ function directoryCardHTML(p, index, categoryType) {
   const safeId = String(id).replace(/'/g, "\\'");
 
   return `
-    <div data-directory-card data-provider-id="${id}" class="bg-white border border-slate-200 rounded-xl p-3 sm:p-4 shadow-sm">
+    <div data-directory-card data-provider-id="${id}" class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm hover:shadow-lg hover:border-red-200 transition-all duration-300">
       <div class="grid grid-cols-1 md:grid-cols-[13rem_minmax(0,1fr)] lg:grid-cols-[14rem_minmax(0,1fr)_13rem] gap-4">
 
         <!-- Image -->
@@ -300,10 +300,19 @@ function directoryCardHTML(p, index, categoryType) {
               ${deps.slice(3).map(d => `<span class="${DIRECTORY_PILL}">${d}</span>`).join("")}
             </div>
             ${deps.length > 3 ? `
-              <button type="button" onclick="toggleDepartments(${index})" id="more-btn-${index}"
-                class="bg-slate-200 text-slate-700 px-3 py-1.5 rounded-full text-xs font-bold hover:bg-slate-300 transition">
-                +${deps.length - 3}
-              </button>` : ""}
+              <button type="button"
+              onclick="
+                const extra = document.getElementById('extra-deps-${index}');
+                const expanded = extra.classList.toggle('hidden') === false;
+                extra.classList.toggle('flex', expanded);
+                this.textContent = expanded ? 'Show Less' : 'Show More (+${deps.length - 3})';
+                this.setAttribute('aria-expanded', String(expanded));
+              "
+              id="more-btn-${index}"
+              aria-expanded="false"
+              class="bg-red-50 text-red-700 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-red-100 transition">
+              Show More (+${deps.length - 3})
+            </button>` : ""}
           </div>
         </div>
 
@@ -343,7 +352,26 @@ function renderHospitalDirectoryView(categoryType = "hospital") {
 
   const meta = DIRECTORY_META[categoryType];
   const groups = DIRECTORY_FILTERS[categoryType];
-  const list = directoryAllProviders().filter(p => p && directoryNorm(p.category) === categoryType && directoryMatchesSearch(p));
+  
+const list = directoryAllProviders().filter(
+  p => p && directoryNorm(p.category) === categoryType && directoryMatchesSearch(p)
+);
+
+const directorySort = window.__directorySort || "recommended";
+
+const reviewCount = p => Number(
+  p.reviewsCount ?? p.reviews_count ?? p.review_count ?? 0
+) || 0;
+
+const rating = p => Number(p.rating) || 0;
+
+if (directorySort === "rating") {
+  list.sort((a, b) => rating(b) - rating(a) || reviewCount(b) - reviewCount(a));
+} else if (directorySort === "reviews") {
+  list.sort((a, b) => reviewCount(b) - reviewCount(a) || rating(b) - rating(a));
+} else if (directorySort === "name") {
+  list.sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+}
 
   setTimeout(() => {                                   // HTML page par lagne ke baad
     if (typeof directoryRefreshDistances === "function") directoryRefreshDistances();
@@ -351,7 +379,7 @@ function renderHospitalDirectoryView(categoryType = "hospital") {
   }, 0);
 
   return `
-    <div class="max-w-7xl mx-auto px-4 py-4" style="zoom: 0.85;">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-6">
 
       <!-- Header -->
       <div class="flex flex-wrap items-end justify-between gap-3 mb-6">
@@ -365,7 +393,9 @@ function renderHospitalDirectoryView(categoryType = "hospital") {
         </div>
         <div class="flex flex-wrap items-center gap-2">
           <label class="relative"><span class="sr-only">Search ${meta.plural}</span><i data-lucide="search" class="absolute left-3 top-2.5 h-4 w-4 text-slate-400"></i><input id="directorySearchInput" value="${escapeReviewHtml(AppState.searchQuery || '')}" oninput="directorySearch(this.value)" placeholder="Search ${meta.plural.toLowerCase()}" class="w-56 rounded-lg border border-slate-200 py-2 pl-9 pr-3 text-sm"></label>
-          <button type="button" onclick="clearAllFilters()" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50">Clear</button>
+          <button type="button" onclick="clearAllFilters()" class="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-xs font-bold text-red-700 hover:bg-red-100 transition">
+  Clear Filters
+</button>
         </div>
       </div>
 
@@ -388,7 +418,7 @@ function renderHospitalDirectoryView(categoryType = "hospital") {
 
         <!-- Left Filter Sidebar -->
         <div class="col-span-1 md:col-span-4 lg:col-span-3">
-          <div id="directory-filter-panel" data-category="${categoryType}" class="hidden md:block bg-white border rounded-xl p-4">
+          <div id="directory-filter-panel" data-category="${categoryType}" class="hidden md:block bg-white border border-slate-200 rounded-2xl p-5 shadow-sm md:sticky md:top-24">
             <div class="flex justify-between items-center mb-4">
               <h3 class="font-bold">Filters</h3>
               <button type="button" onclick="clearAllFilters()" class="text-red-600 text-sm font-semibold hover:underline">Clear All</button>
@@ -407,7 +437,25 @@ function renderHospitalDirectoryView(categoryType = "hospital") {
 
         <!-- Right Content List -->
         <div id="directory-results" class="col-span-1 md:col-span-8 lg:col-span-9 space-y-4 min-w-0">
-          <div id="directory-count" class="text-sm font-semibold text-slate-700">${list.length} ${meta.plural} found</div>
+                
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div id="directory-count" class="text-sm font-semibold text-slate-700">
+            ${list.length} ${meta.plural} found
+          </div>
+
+          <label class="flex items-center gap-2 text-xs font-semibold text-slate-600">
+            Sort by
+            <select
+              onchange="changeDirectorySort(this.value)"
+              class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 focus:outline-none focus:border-red-500">
+              <option value="recommended" ${directorySort === "recommended" ? "selected" : ""}>Recommended</option>
+              <option value="rating" ${directorySort === "rating" ? "selected" : ""}>Highest Rated</option>
+              <option value="reviews" ${directorySort === "reviews" ? "selected" : ""}>Most Reviewed</option>
+              <option value="name" ${directorySort === "name" ? "selected" : ""}>Name A–Z</option>
+            </select>
+          </label>
+        </div>
+
           ${list.map((p, index) => directoryCardHTML(p, index, categoryType)).join("")}
           <div id="directory-empty" class="${list.length === 0 ? "" : "hidden "}bg-white border rounded-xl p-10 text-center text-slate-500 font-medium">
             No ${meta.plural.toLowerCase()} found.
@@ -417,6 +465,18 @@ function renderHospitalDirectoryView(categoryType = "hospital") {
     </div>
   `;
 }
+ 
+window.changeDirectorySort = function(value) {
+  const allowed = ["recommended", "rating", "reviews", "name"];
+
+  window.__directorySort = allowed.includes(value)
+    ? value
+    : "recommended";
+
+  if (typeof renderApp === "function") {
+    renderApp();
+  }
+};
 
 /* ============================================================
    PRACTO-STYLE DETAILED CLINIC & DOCTOR PROFILE ENGINE
@@ -495,14 +555,18 @@ function renderHospitalProfileView(providerId) {
             <span>← Back to previous page</span>
           </button>
           <span class="text-slate-400">Home › Healthcare Providers › <strong class="text-slate-800">${name}</strong></span>
-        </div>
+         </div>   
+          <div class="relative w-full min-h-[280px] sm:min-h-[320px] rounded-3xl overflow-hidden bg-slate-900 shadow-md">
 
-        <!-- 1. FULL COVER BANNER & OVERLAPPING LOGO (Practo Screenshot 4) -->
-        <div class="relative w-full rounded-3xl overflow-hidden bg-slate-900 shadow-md" style="min-height: 250px;">
-          <div class="absolute inset-0 bg-cover bg-center" style="background-image: url('${coverImg}');">
-            <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/50 to-transparent"></div>
-          </div>
-
+            <div class="absolute inset-0">
+              <img
+                src="${coverImg}"
+                alt="${name} Cover"
+                class="w-full h-full object-cover object-center"
+                style="object-position: center 35%;"
+              />
+              <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/50 to-transparent"></div>
+            </div>
           <div class="relative z-10 p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-end justify-between gap-5 h-full pt-16">
             <div class="flex items-center gap-4 text-left">
               <div class="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl border-4 border-white shadow-xl overflow-hidden bg-white shrink-0">
@@ -528,23 +592,41 @@ function renderHospitalProfileView(providerId) {
               <button onclick="window.open('https://maps.google.com/?q=${encodeURIComponent(name + ' ' + locationText)}', '_blank')" class="px-4 py-2 bg-white/20 hover:bg-white/30 text-white backdrop-blur-md rounded-xl text-xs font-bold transition">
                 📍 Get Directions
               </button>
-              <button onclick="alert('Standee QR: Scan at reception to book instant token without standing in queue.')" class="px-4 py-2 bg-white text-slate-900 rounded-xl text-xs font-bold shadow-md hover:bg-slate-100 transition">
-                📱 Reception QR
-              </button>
+              
+            <button
+              type="button"
+              onclick="window.openProviderQrPopup('${p.id}')"
+              class="px-4 py-2 bg-white text-slate-900 rounded-xl text-xs font-bold shadow-md hover:bg-slate-100 transition">
+              📱 Reception QR
+            </button>
+
             </div>
           </div>
         </div>
+         
+<div class="flex flex-wrap items-center gap-6 border-b border-slate-200 mt-6 pb-3 text-xs font-bold text-slate-600">
+  <button type="button"
+    onclick="document.getElementById('profileOverviewSec')?.scrollIntoView({behavior:'smooth', block:'start'})"
+    class="text-[#ad0b0e] border-b-2 border-[#ad0b0e] pb-3 -mb-3 font-extrabold">
+    Overview
+  </button>
 
-        <!-- 2. PRACTO SUB-NAV TABS -->
-        <div class="flex items-center gap-6 border-b border-slate-200 mt-6 pb-3 text-xs font-bold text-slate-600">
-          <button class="text-[#ad0b0e] border-b-2 border-[#ad0b0e] pb-3 -mb-3 font-extrabold">Overview</button>
-          <button onclick="document.getElementById('profileDoctorsSec')?.scrollIntoView({behavior:'smooth'})" class="hover:text-slate-900 transition">Doctors (${docs.length})</button>
-          <button onclick="if(typeof openProviderReviews==='function'){openProviderReviews('${p.id}');}" class="hover:text-slate-900 transition">Patient Stories &amp; Reviews</button>
-        </div>
+  <button type="button"
+    onclick="document.getElementById('profileDoctorsSec')?.scrollIntoView({behavior:'smooth', block:'start'})"
+    class="hover:text-red-700 transition">
+    Doctors (${docs.length})
+  </button>
 
+  <button type="button"
+    onclick="window.openProviderReviews?.('${p.id}')"
+    class="hover:text-red-700 transition">
+    Patient Stories &amp; Reviews
+  </button>
+</div>
         <!-- 3. MAIN SECTION: CLINIC DETAILS + DOCTORS -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-          
+        
+<div id="profileOverviewSec" class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6 scroll-mt-24">
+
           <!-- Left: About & Doctors -->
           <div class="lg:col-span-2 space-y-6 text-left">
             <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
@@ -555,8 +637,7 @@ function renderHospitalProfileView(providerId) {
             ${galleryImages.length ? `<section><h2 class="text-sm font-extrabold text-slate-900 mb-3">Facility Photos</h2><div class="grid grid-cols-2 gap-3 sm:grid-cols-3">${galleryImages.map((image, index) => `<img src="${escapeReviewHtml(image)}" alt="${escapeReviewHtml(name)} photo ${index + 1}" loading="lazy" class="h-32 w-full rounded-xl border border-slate-200 object-cover">`).join('')}</div></section>` : ''}
 
             ${careTeamHtml}
-
-            <div id="profileDoctorsSec">
+            <div id="profileDoctorsSec" class="scroll-mt-24">
               <h2 class="text-base font-extrabold text-slate-900 mb-1">
                 ${isSolo ? 'Consulting Specialist' : 'Doctors & Specialists Available'}
               </h2>

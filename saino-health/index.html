@@ -159,7 +159,7 @@
     <div class="max-w-6xl mx-auto relative">
       
       <!-- Banner Container (Height increased to min-h-[460px] md:min-h-[500px]) -->
-      <div id="heroBannerCard" class="relative rounded-3xl overflow-hidden min-h-[240px] md:min-h-[200px] shadow-lg flex flex-col justify-between p-6 sm:p-10 transition-all duration-700"
+      <div id="heroBannerCard" class="relative rounded-3xl overflow-hidden min-h-[210px] md:min-h-[230px] shadow-lg flex flex-col justify-between p-5 sm:p-6 transition-all duration-700"
            style="background: linear-gradient(135deg, rgba(7, 17, 38, 0.90) 0%, rgba(7, 17, 38, 0.70) 50%, rgba(7, 17, 38, 0.92) 100%), url('https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=1200&q=80') center/cover no-repeat;">
         
         <!-- Top Row on Banner: Tag & Slide Indicator Dots + < and > Buttons -->
@@ -188,7 +188,7 @@
 
         <!-- Middle: Headline & Subtitle -->
         <div class="my-3 max-w-2xl text-left z-10 space-y-2.5">
-          <h1 id="heroBannerTitle" class="text-2xl sm:text-4xl md:text-5xl font-black text-white leading-tight drop-shadow-md">
+          <h1 id="heroBannerTitle" class="text-xl sm:text-2xl md:text-3xl font-black text-white leading-tight drop-shadow-md">
             Blood bank and emergency support
           </h1>
           <p id="heroBannerSubtitle" class="text-xs sm:text-sm text-slate-200 max-w-lg leading-relaxed">
@@ -215,7 +215,7 @@
           <div class="relative flex-1 flex items-center gap-2 px-2.5 py-1">
             <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400"></i>
             <input type="text" id="heroSearchInput" placeholder="Search doctor, hospital, service..." autocomplete="off" aria-controls="heroSearchSuggestions" aria-expanded="false" class="w-full text-xs bg-transparent focus:outline-none placeholder-slate-400 text-slate-800">
-            <div id="heroSearchSuggestions" class="hidden absolute left-0 right-0 top-full z-40 mt-2 max-h-80 overflow-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl"></div>
+            <div id="heroSearchSuggestions" class="hidden fixed z-[9999] max-h-80 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-2xl"></div>
           </div>
 
           <!-- Compact Red Search Button -->
@@ -236,7 +236,7 @@
   </main>
 
   <!-- ================= FOOTER (FB, INSTA, LINKEDIN, GMAIL & ABOUT/CONTACT) ================= -->
-  <footer class="w-full bg-[#17233c] text-slate-300 pt-16 pb-12 border-t border-slate-800 text-xs mt-16">
+  <footer class="w-full bg-[#17233c] text-slate-300 pt-10 pb-8 border-t border-slate-800 text-xs mt-10">
     <div class="max-w-6xl mx-auto px-4 sm:px-6">
       
       <div class="grid grid-cols-1 md:grid-cols-12 gap-8 mb-12">
@@ -277,11 +277,13 @@
         <div class="md:col-span-3 space-y-2 text-left">
           <h4 class="text-white font-bold text-sm mb-3">Healthcare Services</h4>
           <ul class="space-y-1.5 text-slate-400 font-medium">
-            <li><a href="#" onclick="filterCategory('hospital')" class="hover:text-white transition">Hospitals</a></li>
-            <li><a href="#" onclick="filterCategory('clinic')" class="hover:text-white transition">Doctor Clinics</a></li>
-            <li><a href="#" onclick="filterCategory('diagnostic')" class="hover:text-white transition">Diagnostic Labs</a></li>
-            <li><a href="#" onclick="filterCategory('bloodbank')" class="hover:text-white transition">Blood Banks</a></li>
-            <li><a href="#" onclick="filterCategory('ambulance')" class="hover:text-white transition">Ambulance Services</a></li>
+          <li><a href="#" onclick="event.preventDefault(); filterCategory('clinic')" class="hover:text-white transition">Doctor Clinics</a></li>
+
+          <li><a href="#" onclick="event.preventDefault(); filterCategory('diagnostic')" class="hover:text-white transition">Diagnostic Labs</a></li>
+
+          <li><a href="#" onclick="event.preventDefault(); filterCategory('bloodbank')" class="hover:text-white transition">Blood Banks</a></li>
+
+          <li><a href="#" onclick="event.preventDefault(); filterCategory('ambulance')" class="hover:text-white transition">Ambulance Services</a></li>
           </ul>
         </div>
 
@@ -308,6 +310,10 @@
           </div>
           <div class="pt-2">
             <a href="provider/index.html" class="text-slate-400 hover:text-white underline">Provider Dashboard Login</a>
+            <p class="mt-3 text-slate-400 font-semibold">
+              Quicky by SAINO
+              <span class="text-[10px] text-red-300">(Coming Soon)</span>
+            </p>
           </div>
         </div>
 

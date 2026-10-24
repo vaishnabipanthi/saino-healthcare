@@ -140,9 +140,29 @@ function getSainoVisitorId() {
     window.BOOKING_STATE.qrCode = qrParams.get('qr') || '';
     setTimeout(() => window.openAppointmentBooking?.(qrProviderId), 0);
   }
+  const sharedQrProviderId = qrParams.get('qrView');
+  if (sharedQrProviderId && /^\d+$/.test(sharedQrProviderId)) {
+  setTimeout(() => {
+    window.openProviderQrPopup?.(sharedQrProviderId);
+  }, 300);
+}
+
+const sharedProfileId = qrParams.get('profileView');
+
+if (sharedProfileId && /^\d+$/.test(sharedProfileId)) {
+  const sharedProvider = AppState.providers.find(
+    p => String(p.id) === sharedProfileId
+  );
+
+  if (sharedProvider) {
+    setTimeout(() => {
+      window.openProviderProfile?.(sharedProfileId);
+    }, 300);
+  }
+}
+
   initGlobalEventListeners();
-  
-  // Refresh Lucide icons
+
   if (window.lucide) {
     window.lucide.createIcons();
   }
@@ -372,6 +392,43 @@ function renderApp() {
     case 'provider-reviews':
       mainContainer.innerHTML = window.renderProviderReviewsPage();
       break;
+        case 'booking-qr-page': {
+      const provider = AppState.activeProvider;
+
+      if (!provider) {
+        mainContainer.innerHTML = '<p class="p-8 text-center">Hospital unavailable.</p>';
+        break;
+      }
+
+      mainContainer.innerHTML = `
+        <section class="min-h-[70vh] flex items-center justify-center px-4 py-10 bg-slate-50">
+          <div class="w-full max-w-md bg-white rounded-3xl shadow-lg border border-slate-200 p-7 text-center">
+
+            <h1 class="text-xl font-black text-slate-900">
+              ${escapeReviewHtml(provider.name)}
+            </h1>
+
+            <p class="text-sm text-slate-500 mt-2 mb-6">
+              Hospital Booking QR
+            </p>
+
+            <div id="provider-booking-qr"
+                 data-provider-id="${escapeReviewHtml(provider.id)}"
+                 class="flex flex-col items-center justify-center min-h-[220px]">
+              <p class="text-sm text-slate-500">Loading QR...</p>
+            </div>
+
+            <p class="text-xs text-slate-500 mt-5">
+              Scan this QR to book an appointment.
+            </p>
+
+          </div>
+        </section>
+      `;
+
+      setTimeout(() => window.loadProviderBookingQr?.(provider.id), 0);
+      break;
+    }
     case 'provider-profile':
       mainContainer.innerHTML = AppState.activeProvider?.category === 'clinic' && window.renderClinicProfileView
         ? window.renderClinicProfileView(AppState.activeProvider.id)
@@ -490,10 +547,10 @@ window.currentNearYouTab = "bloodbank";
 
 function switchNearYouTab(tabKey) {
   window.currentNearYouTab = tabKey;
-  
+
   document.querySelectorAll(".near-you-tab-btn").forEach(btn => {
-    const isThis = btn.dataset.tab === tabKey;
-    btn.className = isThis 
+    const active = btn.dataset.tab === tabKey;
+    btn.className = active
       ? "near-you-tab-btn px-4 py-2 border-b-2 border-[#ad0b0e] text-[#ad0b0e] font-bold text-xs"
       : "near-you-tab-btn px-4 py-2 text-slate-600 hover:text-slate-900 font-semibold text-xs";
   });
@@ -501,61 +558,98 @@ function switchNearYouTab(tabKey) {
   const container = document.getElementById("nearYouCardsContainer");
   if (!container) return;
 
-  const categoryKey = value => String(value || '').toLowerCase().replace(/[\s_-]+/g, '');
-  const providers = (window.AppState?.providers || []).filter(p => p && (tabKey === 'all' || tabKey === 'offers' || categoryKey(p.category || p.provider_type) === categoryKey(tabKey)));
-  const items = tabKey === 'offers' ? providers.filter(p => (p.services || []).length) : providers;
-  if (!items.length) { container.innerHTML = '<div class="col-span-full p-6 text-center text-sm text-slate-500">No published providers are available in this category yet.</div>'; return; }
-  container.innerHTML = items.map(p => `
-    <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs flex flex-col justify-between">
-      
-<div class="relative h-40 bg-slate-100">
-  <button type="button"
-    onclick="openProviderProfile('${p.id}')"
-    class="block h-full w-full overflow-hidden"
-    aria-label="Open ${escapeReviewHtml(p.name)} profile">
-    <img
-      src="${p.cover_image_url || p.image || p.logo_url || p.logo || 'assets/logo.png'}"
-      alt="${escapeReviewHtml(p.name)}"
-      class="h-full w-full object-cover transition-transform duration-300 hover:scale-105">
-  </button>
+  const categoryKey = value =>
+    String(value || "").toLowerCase().replace(/[\s_-]+/g, "");
 
-  <span class="pointer-events-none absolute top-3 left-3 bg-emerald-600 text-white text-[9px] font-black px-2 py-0.5 rounded-md shadow-xs">
-    Verified
-  </span>
+  const providers = (window.AppState?.providers || []).filter(p =>
+    p && (
+      tabKey === "all" ||
+      tabKey === "offers" ||
+      categoryKey(p.category || p.provider_type) === categoryKey(tabKey)
+    )
+  );
 
-  <button type="button"
-        
-    <div class="absolute top-3 right-3 rounded-full bg-white/95 p-1 shadow-sm">
-      ${typeof window.savedHeartButton === 'function'
-        ? window.savedHeartButton(p.id, 'p-1')
-        : ''}
-    </div>
-  </button>
-</div>
+  const items = tabKey === "offers"
+    ? providers.filter(p => (p.services || []).length)
+    : providers;
 
-      <div class="p-4 flex flex-col flex-1 justify-between gap-3 text-left">
-        <div>
-          
-          <h3 class="font-bold text-sm text-slate-900 leading-snug">
+  if (!items.length) {
+    container.innerHTML = '<div class="col-span-full p-6 text-center text-sm text-slate-500">No published providers are available in this category yet.</div>';
+    return;
+  }
+
+  container.innerHTML = items.slice(0, 4).map(p => {
+    const name = escapeReviewHtml(p.name || "Healthcare Provider");
+    const rating = Number(p.rating || 0);
+    const reviews = Number(p.reviewsCount || p.reviews_count || 0);
+    const image = p.cover_image_url || p.image || p.logo_url || p.logo || "assets/logo.png";
+    const location = escapeReviewHtml(p.city || p.location || "Location not provided");
+
+    return `
+      <article class="group bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col">
+
+        <div class="relative h-44 bg-slate-100">
+          <button type="button"
+            onclick="openProviderProfile('${p.id}')"
+            class="block w-full h-full overflow-hidden"
+            aria-label="Open ${name} profile">
+
+            <img src="${image}" alt="${name}"
+              class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+          </button>
+
+          ${rating >= 4.5 && reviews > 0 ? `
+            <span class="absolute top-3 left-3 bg-white text-amber-700 text-[10px] font-extrabold px-3 py-1.5 rounded-lg shadow-md">
+              ★ Top Rated
+            </span>
+          ` : ""}
+        </div>
+
+        <div class="p-4 flex flex-col flex-1 text-left">
+
+          <button type="button"
+            onclick="openProviderProfile('${p.id}')"
+            class="text-left font-extrabold text-sm text-slate-900 hover:text-[#ad0b0e] leading-snug">
+            ${name}
+          </button>
+
+          <div class="flex items-center gap-2 mt-2 text-xs">
+            <span class="text-amber-500 font-extrabold">
+              ★ ${rating.toFixed(1)}
+            </span>
+
+            <button type="button"
+              onclick="openProviderReviews('${p.id}')"
+              class="text-slate-500 hover:text-[#ad0b0e] hover:underline">
+              (${reviews} reviews)
+            </button>
+          </div>
+
+          <p class="flex items-center gap-1 text-[11px] text-slate-500 mt-3">
+            <i data-lucide="map-pin" class="w-3.5 h-3.5 shrink-0"></i>
+            <span>${location}</span>
+          </p>
+
+          <div class="mt-auto pt-4 flex items-center justify-between gap-2">
+            <div class="inline-flex items-center gap-1.5">
+              ${typeof window.savedHeartButton === "function"
+                ? window.savedHeartButton(p.id, "p-1")
+                : ""}
+            </div>
+
             <button type="button"
               onclick="openProviderProfile('${p.id}')"
-              class="text-left hover:text-[#ad0b0e] hover:underline">
-              ${escapeReviewHtml(p.name)}
+              class="px-4 py-2 rounded-lg bg-[#ad0b0e] hover:bg-[#8f080b] text-white text-[11px] font-bold transition">
+              View Details →
             </button>
-          </h3>
 
-          <div class="flex items-center gap-1.5 text-xs mt-1">
-            <span class="text-amber-500 font-bold">★ ${Number(p.rating || 0)}</span>
-            <span class="text-slate-400">(${Number(p.reviewsCount || p.reviews_count || 0)} reviews)</span>
           </div>
-          <p class="text-[11px] text-slate-500 mt-1">${p.city || p.location || 'Location not provided'}</p>
         </div>
-        <button onclick="openProviderProfile('${p.id}')" class="w-full py-2 border border-[#ad0b0e] text-[#ad0b0e] hover:bg-rose-50 text-xs font-bold rounded-xl transition">
-          View Details →
-        </button>
-      </div>
-    </div>
-  `).join("");
+      </article>
+    `;
+  }).join("");
+
+  window.lucide?.createIcons();
 }
 
 window.openNearYouDirectory = function() {
@@ -661,7 +755,7 @@ function renderMarketplaceView() {
 
   return `
     <!-- 1. COMPACT PROMO CARDS (HALF HEIGHT SLEEK DESIGN) -->
-    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 pt-1">
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-3">
       
       <!-- Card 2: Emergency? -->
       <div class="rounded-xl p-3 bg-gradient-to-br from-sky-50 to-blue-100/60 border border-sky-200/80 flex items-center justify-between gap-2 shadow-2xs">
@@ -730,8 +824,8 @@ function renderMarketplaceView() {
         <!-- Hospitals -->
         <div onclick="filterCategory('hospital')" class="service-card-img cursor-pointer bg-white border border-slate-200/90 rounded-2xl p-5 flex flex-col justify-between text-left">
           <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-50 to-blue-100 flex items-center justify-center mb-4 p-2 shadow-inner border border-sky-100">
-            <img src="https://img.icons8.com/color/96/hospital-3.png" alt="Hospitals" class="w-10 h-10 object-contain">
-          </div>
+            <img src="https://images.unsplash.com/photo-1538108149393-fbbd81895907?auto=format&fit=crop&w=120&q=85" alt="Hospitals" class="w-10 h-10 rounded-lg object-cover">
+            </div>
           <div><h3 class="font-extrabold text-sm text-slate-900">Hospitals</h3><p class="text-[11px] text-slate-500 mt-1 leading-tight">Find and book top hospitals</p></div>
           <div class="mt-5 w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-500 font-bold text-xs">→</div>
         </div>
@@ -739,8 +833,8 @@ function renderMarketplaceView() {
         <!-- Doctors / Clinics -->
         <div onclick="filterCategory('clinic')" class="service-card-img cursor-pointer bg-white border border-slate-200/90 rounded-2xl p-5 flex flex-col justify-between text-left">
           <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center mb-4 p-2 shadow-inner border border-blue-100">
-            <img src="https://img.icons8.com/color/96/stethoscope.png" alt="Clinics" class="w-10 h-10 object-contain">
-          </div>
+           <img src="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=120&q=85" alt="Clinics" class="w-10 h-10 rounded-lg object-cover">
+           </div>
           <div><h3 class="font-extrabold text-sm text-slate-900">Doctors / Clinics</h3><p class="text-[11px] text-slate-500 mt-1 leading-tight">Consult trusted doctors</p></div>
           <div class="mt-5 w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-500 font-bold text-xs">→</div>
         </div>
@@ -748,8 +842,8 @@ function renderMarketplaceView() {
         <!-- Diagnostics -->
         <div onclick="filterCategory('diagnostic')" class="service-card-img cursor-pointer bg-white border border-slate-200/90 rounded-2xl p-5 flex flex-col justify-between text-left">
           <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-50 to-purple-100 flex items-center justify-center mb-4 p-2 shadow-inner border border-indigo-100">
-            <img src="https://img.icons8.com/color/96/microscope.png" alt="Diagnostics" class="w-10 h-10 object-contain">
-          </div>
+           <img src="https://images.unsplash.com/photo-1615461066841-6116e61058f4?auto=format&fit=crop&w=120&q=85" alt="Blood Bank" class="w-10 h-10 rounded-lg object-cover">
+           </div>
           <div><h3 class="font-extrabold text-sm text-slate-900">Diagnostics</h3><p class="text-[11px] text-slate-500 mt-1 leading-tight">Lab tests & health checkups</p></div>
           <div class="mt-5 w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-500 font-bold text-xs">→</div>
         </div>
@@ -757,8 +851,8 @@ function renderMarketplaceView() {
         <!-- Blood Bank -->
         <div onclick="filterCategory('bloodbank')" class="service-card-img cursor-pointer bg-white border border-slate-200/90 rounded-2xl p-5 flex flex-col justify-between text-left">
           <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-red-50 to-rose-100 flex items-center justify-center mb-4 p-2 shadow-inner border border-red-100">
-            <img src="https://img.icons8.com/color/96/blood-bag.png" alt="Blood Bank" class="w-10 h-10 object-contain">
-          </div>
+            <img src="https://images.unsplash.com/photo-1615461066841-6116e61058f4?auto=format&fit=crop&w=120&q=85" alt="Blood Bank" class="w-10 h-10 rounded-lg object-cover">
+            </div>
           <div><h3 class="font-extrabold text-sm text-slate-900">Blood Bank</h3><p class="text-[11px] text-slate-500 mt-1 leading-tight">Find blood banks near you</p></div>
           <div class="mt-5 w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-500 font-bold text-xs">→</div>
         </div>
@@ -766,8 +860,8 @@ function renderMarketplaceView() {
         <!-- Ambulance -->
         <div onclick="filterCategory('ambulance')" class="service-card-img cursor-pointer bg-white border border-slate-200/90 rounded-2xl p-5 flex flex-col justify-between text-left col-span-2 sm:col-span-1">
           <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-rose-50 to-amber-100 flex items-center justify-center mb-4 p-2 shadow-inner border border-rose-100">
-            <img src="https://img.icons8.com/color/96/ambulance.png" alt="Ambulance" class="w-10 h-10 object-contain">
-          </div>
+            <img src="https://images.unsplash.com/photo-1587745416684-47953f16f02f?auto=format&fit=crop&w=120&q=85" alt="Ambulance" class="w-10 h-10 rounded-lg object-cover">
+            </div>
           <div><h3 class="font-extrabold text-sm text-slate-900">Ambulance</h3><p class="text-[11px] text-slate-500 mt-1 leading-tight">24/7 ambulance service</p></div>
           <div class="mt-5 w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-500 font-bold text-xs">→</div>
         </div>
@@ -4953,33 +5047,198 @@ window.loadProviderBookingQr = async function(providerId) {
       return;
     }
     const bookingUrl = new URL(payload.url, api || window.location.origin).toString();
+    const qrPageUrl = new URL(`/?qrView=${encodeURIComponent(providerId)}`, window.location.origin).toString();
     const qrImage = `https://api.qrserver.com/v1/create-qr-code/?size=132x132&data=${encodeURIComponent(bookingUrl)}`;
-    mount.innerHTML = `<img src="${qrImage}" alt="Scan to book at ${escapeReviewHtml(payload.qr.label || 'this provider')}" class="mx-auto h-20 w-20 rounded-md"><span class="mt-1 block text-[10px] font-extrabold">Scan to book</span><div class="mt-1 flex justify-center gap-2"><button type="button" onclick="shareProviderBookingQr('${escapeReviewHtml(providerId)}')" class="text-[10px] font-bold text-red-700 underline">Share</button><button type="button" onclick="copyProviderBookingQr('${escapeReviewHtml(bookingUrl)}')" class="text-[10px] font-bold text-red-700 underline">Copy link</button></div>`;
+   mount.innerHTML = `
+  <button type="button"
+    onclick="openProviderQrPopup('${escapeReviewHtml(providerId)}')"
+    class="flex flex-col items-center mx-auto cursor-pointer">
+
+    <img src="${qrImage}"
+      alt="Hospital Booking QR"
+      class="h-20 w-20 rounded-md">
+
+    <span class="mt-1 block text-[10px] font-extrabold">
+      Scan to book
+    </span>
+  </button>
+`;
   } catch (_) {
     mount.innerHTML = '<span class="text-[11px] font-bold">Booking QR could not be loaded</span>';
   }
 };
+window.openProviderQrPopup = async function(providerId) {
+  const api = window.SAINO_API_ORIGIN || '';
+
+  try {
+    const response = await fetch(
+      `${api}/api/public/providers/${encodeURIComponent(providerId)}/qr`,
+      { cache: 'no-store' }
+    );
+
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok || !payload.success || !payload.qr) {
+      throw new Error('Booking QR unavailable.');
+    }
+
+    const bookingUrl = new URL(
+      payload.url,
+      api || window.location.origin
+    ).toString();
+
+    const qrPageUrl = new URL('/', window.location.origin);
+    qrPageUrl.searchParams.set('qrView', providerId);
+
+    const qrImage = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(bookingUrl)}`;
+
+    document.getElementById('providerQrPopup')?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'providerQrPopup';
+    overlay.className =
+      'fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4';
+
+    overlay.innerHTML = `
+      <div role="dialog" aria-modal="true"
+        aria-label="Hospital Booking QR"
+        class="relative w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl">
+
+        <button type="button" id="closeProviderQrPopup"
+          class="absolute right-4 top-3 text-2xl font-bold text-slate-500"
+          aria-label="Close QR popup">
+          &times;
+        </button>
+
+        <h2 class="mt-3 text-lg font-black text-slate-900">
+          Hospital Booking QR
+        </h2>
+
+        <img src="${qrImage}"
+          alt="Scan to book appointment"
+          class="mx-auto mt-6 h-64 w-64 max-w-full rounded-xl">
+
+        <p class="mt-3 text-xs text-slate-500">
+          Scan to book an appointment
+        </p>
+
+        <div class="mt-6 grid grid-cols-2 gap-3">
+          <button type="button" id="shareProviderQrPopup"
+            class="rounded-xl bg-red-700 px-4 py-3 text-sm font-bold text-white">
+            Share
+          </button>
+
+          <button type="button" id="copyProviderQrPopup"
+            class="rounded-xl border border-red-700 px-4 py-3 text-sm font-bold text-red-700">
+            Copy Link
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    overlay.querySelector('#closeProviderQrPopup').onclick = () => overlay.remove();
+
+    overlay.addEventListener('click', event => {
+      if (event.target === overlay) overlay.remove();
+    });
+
+    overlay.querySelector('#shareProviderQrPopup').onclick = () =>
+      window.shareProviderBookingQr(providerId);
+
+    overlay.querySelector('#copyProviderQrPopup').onclick = () =>
+      window.copyProviderBookingQr(qrPageUrl.toString());
+
+  } catch (error) {
+    showToast(error.message || 'Could not open booking QR.');
+  }
+};
+
+window.shareProviderProfile = async function(providerId) {
+  const provider = (window.AppState?.providers || []).find(
+    p => String(p.id) === String(providerId)
+  );
+
+  const url = new URL("/", window.location.origin);
+  url.searchParams.set("profileView", providerId);
+
+  try {
+    if (navigator.share) {
+      await navigator.share({
+        title: provider?.name || "SAINO Healthcare",
+        text: "View this healthcare provider on SAINO.",
+        url: url.toString()
+      });
+    } else {
+      await navigator.clipboard.writeText(url.toString());
+      if (typeof showToast === "function") showToast("Profile link copied!");
+    }
+  } catch (error) {
+    if (error.name !== "AbortError" && typeof showToast === "function") {
+      showToast("Could not share profile.");
+    }
+  }
+};
 
 window.shareProviderBookingQr = async function(providerId) {
-  const api = window.SAINO_API_ORIGIN || '';
   try {
-    const response = await fetch(`${api}/api/public/providers/${encodeURIComponent(providerId)}/qr`, { cache: 'no-store' });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok || !payload.success) throw new Error(payload.error || 'Booking QR unavailable.');
-    const url = new URL(payload.url, api || window.location.origin).toString();
-    const title = AppState.providers.find(item => String(item.id) === String(providerId))?.name || 'Provider booking';
-    if (navigator.share) await navigator.share({ title: `${title} booking`, text: `Scan or open this link to book directly with ${title}.`, url });
-    else await navigator.clipboard.writeText(url);
+    const url = new URL('/', window.location.origin);
+    url.searchParams.set('qrView', providerId);
+
+    const title = AppState.providers.find(
+      item => String(item.id) === String(providerId)
+    )?.name || 'Hospital';
+
+    if (navigator.share) {
+      await navigator.share({
+        title: `${title} Booking QR`,
+        text: `View the booking QR for ${title}.`,
+        url: url.toString()
+      });
+    } else {
+      await window.copyProviderBookingQr(url.toString());
+    }
   } catch (error) {
-    if (error.name !== 'AbortError') showToast(error.message || 'Could not share booking link.');
+    if (error.name !== 'AbortError') {
+      showToast(error.message || 'Could not share QR page.');
+    }
   }
 };
 
 window.copyProviderBookingQr = async function(url) {
-  try { await navigator.clipboard.writeText(url); showToast('Booking link copied.'); }
-  catch (_) { showToast('Could not copy booking link.'); }
-};
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(url);
+    } else {
+      const input = document.createElement('textarea');
+      input.value = url;
+      input.style.position = 'fixed';
+      input.style.opacity = '0';
+      document.body.appendChild(input);
+      input.focus();
+      input.select();
 
+      const copied = document.execCommand('copy');
+      input.remove();
+
+      if (!copied) throw new Error('Copy failed');
+    }
+   const notification = document.createElement('div');
+
+notification.textContent = 'Link copied to clipboard';
+
+notification.className =
+  'fixed top-6 left-1/2 -translate-x-1/2 z-[10000] bg-slate-900 text-white px-6 py-3 rounded-xl shadow-2xl text-sm font-semibold';
+
+document.body.appendChild(notification);
+
+setTimeout(() => notification.remove(), 2500);
+    
+  } catch (error) {
+    showToast('Could not copy booking link.');
+  }
+};
 function getSavedProviderReviews() {
   const savedReviews = localStorage.getItem('SAINO_PROVIDER_REVIEWS');
   return savedReviews ? JSON.parse(savedReviews) : {};
@@ -6197,7 +6456,14 @@ function initGlobalEventListeners() {
     }).slice(0, 6);
     const esc = value => escapeCommunityText(String(value || ''));
     suggestionBox.innerHTML = matches.map(({provider, detail}) => `<button type="button" data-search-provider="${esc(provider.id)}" class="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-rose-50"><i data-lucide="search" class="mt-0.5 h-4 w-4 shrink-0 text-slate-400"></i><span class="min-w-0"><strong class="block truncate text-xs text-slate-900">${esc(provider.name)}</strong><small class="block truncate text-[11px] text-slate-500">${esc(detail)}</small></span></button>`).join('') || `<div class="p-3 text-xs text-slate-500">No matching providers found in live listings.</div>`;
-    suggestionBox.classList.remove('hidden'); heroInput.setAttribute('aria-expanded', 'true');
+    const searchRect = heroInput.getBoundingClientRect();
+
+      suggestionBox.style.left = `${searchRect.left}px`;
+      suggestionBox.style.top = `${searchRect.bottom + 12}px`;
+      suggestionBox.style.width = `${searchRect.width}px`;
+
+      suggestionBox.classList.remove('hidden');
+      heroInput.setAttribute('aria-expanded', 'true');
     suggestionBox.querySelectorAll('[data-search-provider]').forEach(button => button.addEventListener('click', () => {
       suggestionBox.classList.add('hidden'); openProviderProfile(button.dataset.searchProvider);
     }));

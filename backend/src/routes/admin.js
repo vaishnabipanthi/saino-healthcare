@@ -475,7 +475,7 @@ router.get('/qr', async (_req, res) => {
     res.status(500).json({ success: false, error: 'Could not load QR codes.' });
   }
 });
-
+ router.post('/qr', requireRole('superadmin','admin','operations'), async (req, res) => {
   if (String((req.body || {}).label || '').trim().toLowerCase() === 'booking qr') {
     return res.status(403).json({
       success: false,

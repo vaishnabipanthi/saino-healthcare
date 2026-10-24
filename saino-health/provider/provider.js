@@ -1308,7 +1308,7 @@ function renderNotifications() {
       const formData = new FormData(createProviderQrForm);
       try {
         const response = await apiFetch(`${API_BASE}/qr`, {
-          method: 'POST', body: JSON.stringify({ label: formData.get('label'), branch_name: formData.get('branch_name') })
+          method: 'POST', body: JSON.stringify({ label: 'Booking QR' })
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok || !data.success) throw new Error(data.error || 'Could not create QR code.');
