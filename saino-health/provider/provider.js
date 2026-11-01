@@ -1462,8 +1462,24 @@ document.querySelectorAll('.arrival-cancel').forEach(button => {
 
     const exportBtn = document.getElementById("exportCsvBtn") || document.getElementById("exportCsvBtnReports");
     if (exportBtn) {
-      exportBtn.addEventListener("click", () => {
-        window.open(API_BASE + "/reports/export-csv", "_blank");
+      exportBtn.addEventListener("click", async () => {
+        try {
+          const response = await apiFetch(API_BASE + "/reports/export-csv", { method: "GET" });
+          if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.error || "Could not export appointment report.");
+          }
+          const objectUrl = URL.createObjectURL(await response.blob());
+          const anchor = document.createElement("a");
+          anchor.href = objectUrl;
+          anchor.download = "saino-provider-appointments.csv";
+          document.body.appendChild(anchor);
+          anchor.click();
+          anchor.remove();
+          setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+        } catch (error) {
+          alert(error.message || "Could not export appointment report.");
+        }
       });
     }
 

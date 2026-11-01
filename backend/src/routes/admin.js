@@ -34,6 +34,7 @@ async function ensureAdminTables() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       ALTER TABLE admin_audit_logs ADD COLUMN IF NOT EXISTS user_id BIGINT REFERENCES users(id) ON DELETE SET NULL;
+      ALTER TABLE admin_audit_logs ALTER COLUMN entity_id TYPE TEXT USING entity_id::text;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
       CREATE INDEX IF NOT EXISTS idx_admin_audit_created_at ON admin_audit_logs(created_at DESC);
@@ -315,12 +316,18 @@ router.patch('/bookings/:id/status', requireRole('superadmin', 'admin', 'operati
     if (!current.rowCount) return res.status(404).json({ success: false, error: 'Booking not found in the live provider booking table.' });
     const prior = current.rows[0];
     const normalized = status === 'no-show' ? 'no_show' : status;
-    const visitId = prior.visit_id || (['checked_in','in_progress','completed'].includes(normalized) ? publicId('VISIT') : null);
+    const visitId = prior.visit_id || (['in_progress','completed'].includes(normalized) ? publicId('VISIT') : null);
     const updated = await pool.query(`UPDATE provider_appointments SET status=$1,
-      checked_in_at=CASE WHEN $1 IN ('checked_in','in_progress','completed') THEN COALESCE(checked_in_at,NOW()) ELSE checked_in_at END,
-      started_at=CASE WHEN $1 IN ('in_progress','completed') THEN COALESCE(started_at,NOW()) ELSE started_at END,
-      completed_at=CASE WHEN $1='completed' THEN COALESCE(completed_at,NOW()) ELSE completed_at END,
-      visit_id=COALESCE(visit_id,$2), updated_at=NOW() WHERE id=$3 RETURNING *`, [normalized, visitId, req.params.id]);
+      checked_in_at=CASE WHEN $4::boolean THEN COALESCE(checked_in_at,NOW()) ELSE checked_in_at END,
+      started_at=CASE WHEN $5::boolean THEN COALESCE(started_at,NOW()) ELSE started_at END,
+      completed_at=CASE WHEN $6::boolean THEN COALESCE(completed_at,NOW()) ELSE completed_at END,
+      visit_id=CASE WHEN $5::boolean THEN COALESCE(visit_id,$2) ELSE visit_id END,
+      updated_at=NOW() WHERE id=$3 RETURNING *`, [
+      normalized, visitId, req.params.id,
+      ['checked_in','in_progress','completed'].includes(normalized),
+      ['in_progress','completed'].includes(normalized),
+      normalized === 'completed'
+    ]);
     await writeAudit(req, 'booking_status_updated', 'booking', req.params.id, { from: prior.status, to: normalized });
     res.json({ success: true, appointment: updated.rows[0] });
   } catch (err) {
@@ -435,11 +442,15 @@ router.patch('/reviews/:id/moderation', requireRole('superadmin','admin','suppor
   const hidden = (req.body || {}).is_hidden;
   if (typeof hidden !== 'boolean') return res.status(400).json({ success: false, error: 'is_hidden must be true or false.' });
   try {
-    const updated = await pool.query(`UPDATE reviews SET is_hidden=$1, moderation_status=$2 WHERE id::text=$3 RETURNING to_jsonb(reviews) AS raw`, [hidden, hidden ? 'hidden' : 'visible', req.params.id]);
+    const updated = await pool.query(`UPDATE reviews SET is_hidden=$1,
+      moderation_status=CASE WHEN $1 THEN 'hidden'
+        WHEN moderation_status='hidden' THEN 'published' ELSE moderation_status END
+      WHERE id::text=$2 RETURNING to_jsonb(reviews) AS raw`, [hidden, req.params.id]);
     if (!updated.rowCount) return res.status(404).json({ success: false, error: 'Review not found.' });
     await writeAudit(req, hidden ? 'review_hidden' : 'review_restored', 'review', req.params.id, { is_hidden: hidden });
     res.json({ success: true, review: updated.rows[0].raw });
   } catch (err) {
+    console.error('Admin review moderation failed:', err.message);
     res.status(500).json({ success: false, error: 'Could not update review moderation.' });
   }
 });
@@ -613,7 +624,10 @@ router.put('/settings/:key', requireRole('superadmin'), async (req, res) => {
       RETURNING *`, [key, JSON.stringify((req.body || {}).value ?? {}), req.admin.id]);
     await writeAudit(req, 'platform_setting_updated', 'setting', key, {});
     res.json({ success: true, setting: result.rows[0] });
-  } catch (err) { res.status(500).json({ success: false, error: 'Could not save setting.' }); }
+  } catch (err) {
+    console.error('Admin setting save failed:', err.message);
+    res.status(500).json({ success: false, error: 'Could not save setting.' });
+  }
 });
 
 // Realtime snapshot, SSE stream, analytics (auth ke baad)

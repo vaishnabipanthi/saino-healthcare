@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "node --check src/server.js && node --check src/routes/provider.js && node --check src/routes/admin.js && node --check src/routes/public.js",
+    "test": "node --check src/server.js && node --check src/routes/provider.js && node --check src/routes/admin.js && node --check src/routes/public.js && node --check src/services/bookingFlow.js",
     "dev": "nodemon src/server.js",
     "create:superadmin": "node scripts/create-superadmin.js",
     "start": "node src/server.js"

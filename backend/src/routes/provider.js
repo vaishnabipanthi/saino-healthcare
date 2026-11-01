@@ -57,7 +57,8 @@ async function initTables() {
         ADD COLUMN IF NOT EXISTS consultation_fee NUMERIC(12,2),
         ADD COLUMN IF NOT EXISTS department VARCHAR(150),
         ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE,
-        ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'active';
+        ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'active',
+        ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
       ALTER TABLE services
         ADD COLUMN IF NOT EXISTS provider_id BIGINT REFERENCES providers(id) ON DELETE CASCADE,
@@ -69,7 +70,8 @@ async function initTables() {
         ADD COLUMN IF NOT EXISTS duration_min INTEGER NOT NULL DEFAULT 15,
         ADD COLUMN IF NOT EXISTS code VARCHAR(50),
         ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE,
-        ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'active';
+        ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'active',
+        ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
       ALTER TABLE providers
         ADD COLUMN IF NOT EXISTS category VARCHAR(100),
@@ -645,6 +647,41 @@ router.post('/doctors', async (req, res) => {
   }
 });
 
+router.put('/doctors/:id', async (req, res) => {
+  const b = req.body || {};
+  const name = String(b.name || '').trim();
+  if (!name) return res.status(400).json({ success: false, error: 'Doctor name is required.' });
+  const experience = Number(b.experience_years);
+  const opdFee = Number(b.opd_fee);
+  const followupFee = Number(b.followup_fee);
+  if (!Number.isInteger(experience) || experience < 0 ||
+      !Number.isFinite(opdFee) || opdFee < 0 ||
+      !Number.isFinite(followupFee) || followupFee < 0) {
+    return res.status(400).json({ success: false, error: 'Enter valid experience and fee values.' });
+  }
+  try {
+    const result = await pool.query(`
+      UPDATE doctors SET
+        full_name = $1, name = $1, specialization = $2, department = $2,
+        phone = $3, consultation_fee = $4, opd_fee = $4, avatar_url = $5,
+        qualification = $6, experience_years = $7, nmc_no = $8, room = $9,
+        followup_fee = $10, shift_timings = $11, updated_at = NOW()
+      WHERE id = $12 AND provider_id = $13 AND status <> 'deleted'
+      RETURNING id, provider_id, full_name AS name, avatar_url, qualification,
+        COALESCE(department, specialization) AS department, experience_years, nmc_no, room,
+        COALESCE(opd_fee, consultation_fee, 0) AS opd_fee, followup_fee, shift_timings, status`,
+      [name, b.department || null, b.phone || null, opdFee, b.avatar_url || null,
+        b.qualification || null, experience, b.nmc_no || null, b.room || null,
+        followupFee, b.shift_timings || null, req.params.id, req.providerId]
+    );
+    if (!result.rowCount) return res.status(404).json({ success: false, error: 'Doctor not found.' });
+    res.json({ success: true, doctor: result.rows[0] });
+  } catch (err) {
+    console.error('Doctor update failed:', err.message);
+    res.status(500).json({ success: false, error: 'Could not update doctor.' });
+  }
+});
+
 router.put('/profile', async (req, res) => {
   const b = req.body || {};
   try {
@@ -743,6 +780,89 @@ router.post('/services', async (req, res) => {
   } catch (err) {
     console.error('Service save failed:', err.message);
     res.status(500).json({ success: false, message: 'Could not save service to PostgreSQL.' });
+  }
+});
+
+router.put('/services/:id', async (req, res) => {
+  const b = req.body || {};
+  const name = String(b.name || '').trim();
+  const price = Number(b.price);
+  const duration = Number(b.duration_min);
+  if (!name) return res.status(400).json({ success: false, error: 'Service name is required.' });
+  if (!Number.isFinite(price) || price < 0 || !Number.isInteger(duration) || duration < 1) {
+    return res.status(400).json({ success: false, error: 'Enter a valid service price and duration.' });
+  }
+  try {
+    const result = await pool.query(`
+      UPDATE services SET name = $1, description = $2, category = $3, department = $4,
+        price = $5, duration_min = $6, updated_at = NOW()
+      WHERE id = $7 AND provider_id = $8 AND status <> 'deleted'
+      RETURNING id, provider_id, name, description, category, department, price,
+        duration_min, code, status, is_active, created_at`,
+      [name, b.description || null, b.category || null, b.department || null,
+        price, duration, req.params.id, req.providerId]
+    );
+    if (!result.rowCount) return res.status(404).json({ success: false, error: 'Service not found.' });
+    res.json({ success: true, service: result.rows[0] });
+  } catch (err) {
+    console.error('Service update failed:', err.message);
+    res.status(500).json({ success: false, error: 'Could not update service.' });
+  }
+});
+
+router.get('/reports/export-csv', async (req, res) => {
+  const validDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+    !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) &&
+    new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+  const from = String(req.query.from || '').trim();
+  const to = String(req.query.to || '').trim();
+  if ((from && !validDate(from)) || (to && !validDate(to)) || (from && to && from > to)) {
+    return res.status(400).json({ success: false, error: 'Enter a valid report date range.' });
+  }
+  const csvCell = (value) => {
+    let text = value == null ? '' : String(value);
+    if (/^[\s]*[=+\-@]/.test(text)) text = `'${text}`;
+    return `"${text.replace(/"/g, '""')}"`;
+  };
+  try {
+    const values = [req.providerId];
+    const clauses = ['provider_id = $1'];
+    if (from) {
+      values.push(from);
+      clauses.push(`appointment_date >= $${values.length}::date`);
+    }
+    if (to) {
+      values.push(to);
+      clauses.push(`appointment_date <= $${values.length}::date`);
+    }
+    const result = await pool.query(`
+      SELECT booking_ref, patient_id, visit_id, patient_name, patient_phone, patient_email,
+        appointment_date, slot_time, doctor, service_name, source, consultation_type,
+        status, payment_status, payment_method, fee, token, room, created_at
+      FROM provider_appointments
+      WHERE ${clauses.join(' AND ')}
+      ORDER BY appointment_date DESC, slot_time DESC, created_at DESC`, values);
+    const columns = [
+      'Booking ID', 'PID', 'Visit ID', 'Patient', 'Phone', 'Email', 'Appointment Date',
+      'Time', 'Doctor', 'Service', 'Source', 'Consultation Type', 'Status',
+      'Payment Status', 'Payment Method', 'Fee (INR)', 'Token', 'Room', 'Created At'
+    ];
+    const records = result.rows.map((row) => [
+      row.booking_ref, row.patient_id, row.visit_id, row.patient_name, row.patient_phone,
+      row.patient_email, row.appointment_date, row.slot_time, row.doctor, row.service_name,
+      row.source, row.consultation_type, row.status, row.payment_status, row.payment_method,
+      row.fee, row.token, row.room, row.created_at
+    ]);
+    const csv = [columns, ...records].map((record) => record.map(csvCell).join(',')).join('\r\n');
+    res.set({
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="saino-provider-appointments.csv"',
+      'Cache-Control': 'no-store'
+    });
+    res.send(`\uFEFF${csv}`);
+  } catch (err) {
+    console.error('Provider report export failed:', err.message);
+    res.status(500).json({ success: false, error: 'Could not export appointment report.' });
   }
 });
 
@@ -911,11 +1031,15 @@ router.post('/appointments', async (req, res) => {
       }
     }
     const appointmentDate = String(b.appointment_date || b.date || '').trim() || flow.todayTz();
+    const slotTime = String(b.slot_time || b.time || '').trim() || null;
+    if (await flow.lockAppointmentSlot(client, req.providerId, doctorId, appointmentDate, slotTime)) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ success: false, error: 'This doctor already has an appointment at the selected date and time.' });
+    }
     if (!token && ['waiting', 'checked_in', 'confirmed', 'in_progress'].includes(status)) {
       const t = await flow.nextToken(client, req.providerId, appointmentDate);
       token = t.token; tokenNo = t.token_no;
     }
-    const slotTime = String(b.slot_time || b.time || '').trim() || null;
     const consultationType = String(b.consultation_type || (source === 'telemedicine' ? 'video' : 'in_person')).toLowerCase() === 'video' ? 'video' : 'in_person';
     const fee = b.fee === undefined || b.fee === null || b.fee === '' ? 0 : Math.max(0, Number(b.fee) || 0);
     const result = await client.query(`
@@ -926,11 +1050,12 @@ router.post('/appointments', async (req, res) => {
         appointment_date, consultation_type, payment_status, payment_method, reason,
         checked_in_at, updated_at
       ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
-        CASE WHEN $16::text IN ('checked_in','in_progress','completed') THEN NOW() ELSE NULL END, NOW()) RETURNING *`, [
+        CASE WHEN $22::boolean THEN NOW() ELSE NULL END, NOW()) RETURNING *`, [
       req.providerId, bookingRef, token, patientRow.pid, patientName, phone || null, email || null,
       doctorId, b.doctor || null, b.room || null, serviceId, serviceName || null, source,
       slotTime, fee, status, appointmentDate, consultationType,
-      String(b.payment_status || 'pending'), b.payment_method || null, b.reason || b.notes || null
+      String(b.payment_status || 'pending'), b.payment_method || null, b.reason || b.notes || null,
+      ['checked_in', 'in_progress', 'completed'].includes(status)
     ]);
     if (tokenNo !== null) await client.query('UPDATE provider_appointments SET token_no = $1 WHERE id = $2', [tokenNo, result.rows[0].id]);
     await client.query('COMMIT');
@@ -1246,6 +1371,7 @@ router.patch('/appointments/:id', async (req, res) => {
     const current = await client.query('SELECT * FROM provider_appointments WHERE id = $1 AND provider_id = $2 LIMIT 1 FOR UPDATE', [req.params.id, req.providerId]);
     if (!current.rowCount) { await client.query('ROLLBACK'); return res.status(404).json({ success: false, error: 'Appointment not found.' }); }
     const prior = current.rows[0];
+    const priorStatus = String(prior.status || '').trim().toLowerCase();
     // Arrival request cancellation requires a reason
 if (
   prior.arrival_status === 'pending' &&
@@ -1345,4 +1471,3 @@ if (
 
 module.exports = router;
 router.ensureTables = initTables;
-

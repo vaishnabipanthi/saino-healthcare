@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const pool = require('../config/db');
 const providerRouter = require('./provider');
 const razorpay = require('../services/razorpay');
+const bookingFlow = require('../services/bookingFlow');
 const router = express.Router();
 
 const ensureTables = providerRouter.ensureTables || (async () => {});
@@ -1088,6 +1089,10 @@ router.post('/bookings', async (req, res) => {
       if (svc.rowCount) { serviceId = svc.rows[0].id; serviceName = svc.rows[0].name; fee = svc.rows[0].price == null ? null : safeNumber(svc.rows[0].price); }
     }
     if (fee === null) fee = 0;// Fee is sourced from the provider's DB record, never from a client-submitted amount.
+    if (await bookingFlow.lockAppointmentSlot(client, provider.id, doctorId, date, time)) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ success: false, error: 'This doctor already has an appointment at the selected date and time.' });
+    }
 
     let patient = null;
     if (email) {
@@ -1539,6 +1544,8 @@ EXISTS (
   }
 });
 
+
+router.use('/search', require('./search').publicSearch);
 
 router.get('/qr/:code', async (req, res) => {
   try {

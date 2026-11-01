@@ -1,6 +1,8 @@
 'use strict';
+const crypto = require('crypto');
 
 const todayTz = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+const publicId = (prefix) => `${prefix}-${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
 
 async function ensureBookingSchema(db) {
   await db.query(`
@@ -35,6 +37,19 @@ async function nextToken(db, providerId, date) {
   return { token_no: n, token: `Q-${String(n).padStart(3, '0')}` };
 }
 
+async function lockAppointmentSlot(db, providerId, doctorId, date, time) {
+  if (!time) return false;
+  await db.query('SELECT pg_advisory_xact_lock(hashtext($1::text))', [
+    `slot:${providerId}:${doctorId || 0}:${date}:${time}`
+  ]);
+  const existing = await db.query(`SELECT 1 FROM provider_appointments
+    WHERE provider_id = $1 AND doctor_id IS NOT DISTINCT FROM $2::bigint
+      AND appointment_date = $3::date AND slot_time = $4
+      AND LOWER(COALESCE(status, '')) NOT IN ('cancelled', 'canceled', 'no_show', 'rejected')
+    LIMIT 1`, [providerId, doctorId || null, date, time]);
+  return existing.rowCount > 0;
+}
+
 async function notify(db, bookingRef, type, title, message, payload = {}) {
   const result = await db.query(`INSERT INTO patient_notifications(patient_id, booking_ref, type, title, message, payload)
     SELECT patient_id, booking_ref, $2::text, $3::text, $4::text, $5::jsonb
@@ -58,15 +73,17 @@ async function changeStatus(db, appointment, status, options = {}) {
   const eta = options.eta === undefined || options.eta === null ? appointment.eta_minutes : options.eta;
   const payment = options.paymentStatus === undefined ? appointment.payment_status : options.paymentStatus;
   const reason = options.reason === undefined ? appointment.reason : options.reason;
+  const visitId = next === 'in_progress' ? publicId('VISIT') : null;
   const result = await db.query(`UPDATE provider_appointments SET
     status = $2::varchar, token = $3::varchar, token_no = $4::integer,
     room = $5::varchar, eta_minutes = $6::integer, payment_status = $7::varchar,
     reason = $8::text,
+    visit_id = CASE WHEN $2::text = 'in_progress' THEN COALESCE(visit_id, $9::varchar) ELSE visit_id END,
     checked_in_at = CASE WHEN $2::text IN ('checked_in','arrived') AND checked_in_at IS NULL THEN NOW() ELSE checked_in_at END,
     started_at = CASE WHEN $2::text = 'in_progress' AND started_at IS NULL THEN NOW() ELSE started_at END,
     completed_at = CASE WHEN $2::text = 'completed' AND completed_at IS NULL THEN NOW() ELSE completed_at END,
     updated_at = NOW() WHERE id = $1::bigint RETURNING *`,
-    [appointment.id, next, token, tokenNo, room, eta, payment, reason]);
+    [appointment.id, next, token, tokenNo, room, eta, payment, reason, visitId]);
   if (!result.rowCount) throw new Error('Appointment no longer exists');
   if (next !== previous) {
     await notify(db, appointment.booking_ref, 'status_update', 'Appointment updated', `Your appointment status is now ${next.replace(/_/g, ' ')}.`, { status: next, token });
@@ -74,4 +91,4 @@ async function changeStatus(db, appointment, status, options = {}) {
   return result.rows[0];
 }
 
-module.exports = { todayTz, ensureBookingSchema, nextToken, notify, changeStatus };
+module.exports = { todayTz, ensureBookingSchema, nextToken, lockAppointmentSlot, notify, changeStatus };
