@@ -1114,7 +1114,8 @@ router.post('/bookings', async (req, res) => {
 
     
 const bookingId = id('SAINO');
-const token = null; 
+const token = null;
+const trackingToken = crypto.randomBytes(32).toString('hex');
 
     const paymentRequired = false;
     let paymentOrder = null;
@@ -1135,11 +1136,11 @@ const token = null;
     const status = 'pending';
 
     const appointment = await client.query(`INSERT INTO provider_appointments(
-      provider_id, booking_ref, token, patient_id, patient_name, patient_phone, patient_email,
+      provider_id, booking_ref, token, tracking_token, patient_id, patient_name, patient_phone, patient_email,
       doctor_id, doctor, room, service_id, service_name, source, slot_time, fee, status,
       appointment_date, consultation_type, payment_status, payment_method, reason, updated_at
-    ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,NOW()) RETURNING *`, [
-      provider.id, bookingId, token, patient.pid, patientName, phone, email || null,
+    ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,NOW()) RETURNING *`, [
+      provider.id, bookingId, token, trackingToken, patient.pid, patientName, phone, email || null,
       doctorId, doctorName, room, serviceId, serviceName, source, time, fee, status, date,
       consultationType, paymentStatus, paymentMethod, String(b.notes || '').trim() || null
     ]);
@@ -1166,8 +1167,8 @@ const token = null;
     await client.query(`INSERT INTO patient_notifications(patient_id, booking_ref, type, title, message, payload)
       VALUES($1,$2,'booking_update',$3,$4,$5::jsonb)`, [
       patient.pid, bookingId, 'Booking request received',
-      paymentUnavailable ? `${provider.name}: request saved with token ${token}. Online payment is not configured yet; the appointment is awaiting payment.` : `${provider.name}: request saved with queue token ${token}.`,
-      JSON.stringify({ provider_id: String(provider.id), provider_name: provider.name, token, status, payment_status: 'pending', appointment_date: date, slot_time: time, room, doctor_name: doctorName, amount: fee })
+      paymentUnavailable ? `${provider.name}: your request is saved. The queue token will appear in live tracking after provider confirmation. Online payment is not configured yet.` : `${provider.name}: your request is saved. The queue token will appear in live tracking after provider confirmation.`,
+      JSON.stringify({ provider_id: String(provider.id), provider_name: provider.name, status, payment_status: 'pending', appointment_date: date, slot_time: time, room, doctor_name: doctorName, amount: fee })
     ]);
     if (qrCode) {
       await client.query(`UPDATE provider_qr_codes SET updated_at = NOW() WHERE id = $1`, [qrCode.id]);
@@ -1175,7 +1176,7 @@ const token = null;
     await client.query('COMMIT');
     res.status(201).json({
       success: true, message: paymentUnavailable
-        ? 'Booking request saved with a queue token. Online payment is not configured yet; this appointment is not confirmed.'
+        ? 'Booking request saved. Online payment is not configured yet; this appointment is not confirmed.'
         : paymentRequired
         ? 'Booking saved. Complete payment to confirm the booking request.'
         : 'Booking request saved and sent to the provider for confirmation.',
@@ -1186,6 +1187,7 @@ const token = null;
       booking: {
         booking_id: appointment.rows[0].booking_ref, patient_id: appointment.rows[0].patient_id,
         visit_id: appointment.rows[0].visit_id, token: appointment.rows[0].token,
+        tracking_token: appointment.rows[0].tracking_token,
         status: appointment.rows[0].status, payment_status: appointment.rows[0].payment_status,
         payment_unavailable: paymentUnavailable, payment_required: paymentRequired,
         provider_name: provider.name, provider_id: String(provider.id), consultation_type: consultationType,
@@ -1445,6 +1447,73 @@ router.post('/bookings/:bookingRef/arrival-request', patientAuth, async (req, re
   }
 });
 
+router.get('/booking-tracking/:trackingToken', async (req, res) => {
+  try {
+    await ensureTables();
+    const trackingToken = String(req.params.trackingToken || '');
+    if (!/^[a-f0-9]{64}$/i.test(trackingToken)) {
+      return res.status(400).json({ success: false, error: 'Invalid booking tracking link.' });
+    }
+
+    const result = await pool.query(`
+      SELECT a.booking_ref, a.status, a.payment_status, a.token,
+        a.appointment_date, a.slot_time, a.consultation_type, a.doctor AS doctor_name,
+        a.room, a.service_name, a.fee AS amount, a.eta_minutes,
+        p.name AS provider_name,
+        CASE
+          WHEN LOWER(a.status) IN ('waiting', 'checked_in')
+          THEN 1 + (
+            SELECT COUNT(*)::int
+            FROM provider_appointments ahead
+            WHERE ahead.provider_id = a.provider_id
+              AND ahead.appointment_date = a.appointment_date
+              AND LOWER(ahead.status) IN ('waiting', 'checked_in')
+              AND ahead.created_at < a.created_at
+          )
+          ELSE NULL
+        END AS queue_position,
+        (
+          SELECT serving.token
+          FROM provider_appointments serving
+          WHERE serving.provider_id = a.provider_id
+            AND serving.appointment_date = a.appointment_date
+            AND LOWER(serving.status) = 'in_progress'
+          ORDER BY serving.started_at DESC NULLS LAST
+          LIMIT 1
+        ) AS now_serving_token
+      FROM provider_appointments a
+      JOIN providers p ON p.id = a.provider_id
+      WHERE a.tracking_token = $1
+      LIMIT 1
+    `, [trackingToken]);
+
+    if (!result.rowCount) {
+      return res.status(404).json({ success: false, error: 'Booking not found for this tracking link.' });
+    }
+
+    const booking = result.rows[0];
+    const tokenVisible = ['confirmed', 'checked_in', 'waiting', 'in_progress', 'completed']
+      .includes(String(booking.status || '').toLowerCase());
+    return res.json({
+      success: true,
+      booking: {
+        ...booking,
+        token: tokenVisible ? booking.token : null,
+        queue: {
+          token: tokenVisible ? booking.token : null,
+          position: booking.queue_position == null ? null : Number(booking.queue_position),
+          now_serving_token: booking.now_serving_token || null,
+          eta_minutes: booking.eta_minutes == null ? null : Number(booking.eta_minutes),
+          room: booking.room || null
+        }
+      }
+    });
+  } catch (err) {
+    console.error('Public booking tracking failed:', err.message);
+    return res.status(503).json({ success: false, error: 'Booking tracking is unavailable.' });
+  }
+});
+
 router.get('/bookings/:bookingRef', patientAuth, async (req, res) => {
   try {
     await ensureTables();
@@ -1452,7 +1521,7 @@ router.get('/bookings/:bookingRef', patientAuth, async (req, res) => {
     const result = await pool.query(`
       SELECT
         a.booking_ref, a.patient_id, a.visit_id,
-        a.status, a.payment_status, a.token,
+        a.status, a.payment_status, a.token, a.tracking_token,
         a.appointment_date, a.slot_time, a.consultation_type,
         a.doctor AS doctor_name, a.room, a.service_name,
         a.fee AS amount, a.eta_minutes, a.updated_at,
