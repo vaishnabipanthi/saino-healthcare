@@ -20,7 +20,7 @@ async function initTables() {
         ADD COLUMN IF NOT EXISTS owner_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
         ADD COLUMN IF NOT EXISTS email VARCHAR(255),
         ADD COLUMN IF NOT EXISTS provider_type VARCHAR(50),
-        ADD COLUMN IF NOT EXISTS plan VARCHAR(80) DEFAULT 'Saino Free',
+        ADD COLUMN IF NOT EXISTS plan VARCHAR(80) DEFAULT 'Saino Pro',
         ADD COLUMN IF NOT EXISTS status VARCHAR(40) DEFAULT 'pending',
         ADD COLUMN IF NOT EXISTS registration_no VARCHAR(150),
         ADD COLUMN IF NOT EXISTS vatpan VARCHAR(150),
@@ -82,6 +82,7 @@ async function initTables() {
         ADD COLUMN IF NOT EXISTS phone VARCHAR(40),
         ADD COLUMN IF NOT EXISTS email VARCHAR(255),
         ADD COLUMN IF NOT EXISTS status VARCHAR(40) NOT NULL DEFAULT 'pending';
+      ALTER TABLE providers ALTER COLUMN plan SET DEFAULT 'Saino Pro';
 
       ALTER TABLE reviews
         ADD COLUMN IF NOT EXISTS provider_id BIGINT REFERENCES providers(id) ON DELETE CASCADE,
@@ -118,7 +119,6 @@ async function initTables() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         UNIQUE(provider_id, booking_ref)
       );
-
       ALTER TABLE provider_appointments
         ADD COLUMN IF NOT EXISTS tracking_token VARCHAR(64);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_provider_appointments_tracking_token
@@ -297,8 +297,11 @@ function makePublicId(prefix) {
 }
 
 function planAmount(plan) {
-  return ({ 'Saino Free': 0, 'Saino Pro': 3600, 'Saino VIP': 5900, 'Saino VVIP': 9999 })[plan] ?? null;
+  return ({ 'Saino Pro': 3600, 'Saino VIP': 5900, 'Saino VVIP': 9999 })[plan] ?? null;
 }
+
+const hasPaidProviderPlan = (plan) =>
+  ['Saino Pro', 'Saino VIP', 'Saino VVIP'].includes(String(plan || '').trim());
 
 function normaliseCategory(raw) {
   const value = String(raw || '').trim().toLowerCase();
@@ -340,7 +343,7 @@ router.post('/register', async (req, res) => {
     if (password.length < 6) {
       return res.status(400).json({ success: false, error: 'Password must contain at least 6 characters.' });
     }
-    if (!['Saino Free', 'Saino Pro', 'Saino VIP', 'Saino VVIP'].includes(plan)) {
+    if (!['Saino Pro', 'Saino VIP', 'Saino VVIP'].includes(plan)) {
       return res.status(400).json({ success: false, error: 'Selected SAINO plan is not valid.' });
     }
 
@@ -386,7 +389,7 @@ router.post('/register', async (req, res) => {
     await client.query(
       `INSERT INTO provider_subscriptions(provider_id, plan, amount, currency, payment_status)
        VALUES ($1, $2, $3, 'NPR', $4)`,
-      [provider.id, plan, planAmount(plan), plan === 'Saino Free' ? 'not_required' : 'pending']
+      [provider.id, plan, planAmount(plan), 'pending']
     );
 
     await client.query('COMMIT');
@@ -418,7 +421,8 @@ router.post('/login', async (req, res) => {
 
     const result = await pool.query(
       `SELECT u.id AS user_id, u.full_name, u.email, u.password_hash, u.is_active,
-              p.id AS provider_id, p.name AS provider_name, p.plan, p.verification_status
+              p.id AS provider_id, p.name AS provider_name, p.plan,
+              p.verification_status, p.created_at
        FROM users u
        JOIN providers p ON p.owner_user_id = u.id
        WHERE LOWER(u.email) = $1 AND u.role = 'provider'
@@ -429,6 +433,10 @@ router.post('/login', async (req, res) => {
     if (!record || !record.is_active || !record.password_hash || !(await bcrypt.compare(password, record.password_hash))) {
       return res.status(401).json({ success: false, error: 'Email or password is incorrect.' });
     }
+    if (!hasPaidProviderPlan(record.plan)) {
+      return res.status(403).json({ success: false, code: 'PAID_PLAN_REQUIRED', error: 'Provider SaaS access is available with a paid plan only.' });
+    }
+    // Temporarily disabled for testing: enforce the 24-hour SaaS access delay here.
 
     const token = jwt.sign(
       { userId: String(record.user_id), providerId: String(record.provider_id), role: 'provider' },
@@ -470,6 +478,10 @@ router.use(async (req, res, next) => {
       [claims.providerId, claims.userId]
     );
     if (!result.rows.length) return res.status(401).json({ success: false, code: 'AUTH_REQUIRED', error: 'Provider account was not found.' });
+    if (!hasPaidProviderPlan(result.rows[0].plan)) {
+      return res.status(403).json({ success: false, code: 'PAID_PLAN_REQUIRED', error: 'Provider SaaS access is available with a paid plan only.' });
+    }
+    // Temporarily disabled for testing: enforce the 24-hour SaaS access delay here.
     req.provider = result.rows[0];
     req.providerId = result.rows[0].id;
     req.providerUserId = result.rows[0].account_user_id;
@@ -592,7 +604,7 @@ router.get('/dashboard', async (req, res) => {
     const savedQueue = queueRes.rows[0] && queueRes.rows[0].state;
     const safeProvider = {
       ...p,
-      plan_name: p.plan || 'Saino Free',
+      plan_name: p.plan || 'No paid plan',
       doctor_limit: null,
       service_limit: null
     };

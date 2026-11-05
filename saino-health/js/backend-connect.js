@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:4000/api';
+const API_BASE_URL = 'https://saino-backend-td51.onrender.com/api';
 async function fetchProviders(query, city) {
   try {
     let url = `${API_BASE_URL}/search?q=${encodeURIComponent(query)}`;

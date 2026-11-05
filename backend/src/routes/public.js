@@ -418,8 +418,9 @@ verified_visit: r.is_verified === true
     ].filter(Boolean))];
     return {
       ...raw, id: String(raw.id), name: getText(raw, 'name') || 'Healthcare Provider', category,
-      provider_type: category, verification_status: 'verified', verified: true,
-      plan: getText(raw, 'plan') || 'Saino Free', badgeLabel: getText(raw, 'plan') || 'Saino Verified',
+      provider_type: category, verification_status: getText(raw, 'verification_status') || 'pending',
+verified: getText(raw, 'verification_status').toLowerCase() === 'verified',
+      plan: getText(raw, 'plan') || 'Listed', badgeLabel: getText(raw, 'plan') || 'Saino Verified',
       rating, reviewsCount, reviews_count: reviewsCount, reviews, likesCount: likesByProvider.get(String(raw.id)) || 0, interestedCount: 0,
       address, location: address, city, area: getText(raw, 'district', 'province'),
       phone: getText(raw, 'phone'), email: getText(raw, 'email'), website: getText(raw, 'website', 'website_url'),
@@ -1456,7 +1457,7 @@ router.get('/booking-tracking/:trackingToken', async (req, res) => {
     }
 
     const result = await pool.query(`
-      SELECT a.booking_ref, a.status, a.payment_status, a.token,
+      SELECT a.booking_ref, a.patient_name, a.status, a.payment_status, a.token,
         a.appointment_date, a.slot_time, a.consultation_type, a.doctor AS doctor_name,
         a.room, a.service_name, a.fee AS amount, a.eta_minutes,
         p.name AS provider_name,
@@ -1498,6 +1499,7 @@ router.get('/booking-tracking/:trackingToken', async (req, res) => {
       success: true,
       booking: {
         ...booking,
+        booking_id: booking.booking_ref,
         token: tokenVisible ? booking.token : null,
         queue: {
           token: tokenVisible ? booking.token : null,
@@ -1665,6 +1667,109 @@ if (
   } catch (err) {
     console.error('QR redirect failed:', err.message);
     res.status(503).send('SAINO QR could not be opened. Please try again later.');
+  }
+});
+// ==========================================
+// COMMUNITY DISCUSSIONS
+// ==========================================
+
+async function ensureCommunityDiscussionsTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS community_discussions (
+      id BIGSERIAL PRIMARY KEY,
+      patient_name VARCHAR(150) NOT NULL DEFAULT 'Patient',
+      question TEXT NOT NULL,
+      details TEXT,
+      provider_name VARCHAR(200),
+      city VARCHAR(100),
+      category VARCHAR(100) DEFAULT 'General',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_community_discussions_created
+    ON community_discussions(created_at DESC)
+  `);
+}
+
+router.get('/community-discussions', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT id, patient_name, question, details,
+             provider_name, city, category, created_at
+      FROM community_discussions
+      ORDER BY created_at DESC
+      LIMIT 100
+    `);
+
+    res.json({
+      success: true,
+      discussions: result.rows
+    });
+  } catch (error) {
+    console.error('GET community discussions error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to load discussions'
+    });
+  }
+});
+
+// POST: Submit a new discussion question
+router.post('/community-discussions', async (req, res) => {
+  try {
+    await ensureCommunityDiscussionsTable();
+
+    const patientName = String(req.body.patient_name || 'Patient').trim();
+    const question = String(req.body.question || '').trim();
+    const details = String(req.body.details || '').trim();
+    const providerName = String(req.body.provider_name || '').trim();
+    const city = String(req.body.city || '').trim();
+    const category = String(req.body.category || 'General').trim();
+
+    if (!question || question.length < 10 || question.length > 2000) {
+      return res.status(400).json({
+        success: false,
+        error: 'Question must contain 10 to 2000 characters.'
+      });
+    }
+
+    if (patientName.length > 150 || providerName.length > 200 ||
+        city.length > 100 || category.length > 100 || details.length > 5000) {
+      return res.status(400).json({
+        success: false,
+        error: 'One or more fields exceed the allowed length.'
+      });
+    }
+
+    const result = await pool.query(`
+      INSERT INTO community_discussions
+        (patient_name, question, details, provider_name, city, category)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING
+        id, patient_name, question, details,
+        provider_name, city, category, created_at
+    `, [
+      patientName || 'Patient',
+      question,
+      details || null,
+      providerName || null,
+      city || null,
+      category || 'General'
+    ]);
+
+    res.status(201).json({
+      success: true,
+      discussion: result.rows[0]
+    });
+
+  } catch (err) {
+    console.error('Community discussion submission failed:', err.message);
+    res.status(503).json({
+      success: false,
+      error: 'Your question could not be saved.'
+    });
   }
 });
 

@@ -217,10 +217,10 @@ router.get('/providers/:id', async (req, res) => {
 router.post('/providers/:id/status', requireRole('superadmin', 'admin'), async (req, res) => {
   const requested = String((req.body || {}).status || '').trim().toLowerCase();
   const mapping = {
-    onboarding_approved: { verification: 'setup_in_progress', status: 'setup_in_progress', published: false, activateUser: true },
-    active: { verification: 'verified', status: 'active', published: true },
-    verified: { verification: 'verified', status: 'active', published: true },
-    approved: { verification: 'verified', status: 'active', published: true },
+    onboarding_approved: { verification: 'verified', status: 'active', published: true, activateUser: true },
+    active: { verification: 'verified', status: 'active', published: true, activateUser: true },
+    verified: { verification: 'verified', status: 'active', published: true, activateUser: true },
+    approved: { verification: 'verified', status: 'active', published: true, activateUser: true },
     rejected: { verification: 'rejected', status: 'rejected', published: false },
     pending_verification: { verification: 'pending', status: 'pending', published: false },
     pending: { verification: 'pending', status: 'pending', published: false },

@@ -136,10 +136,10 @@
           localStorage.setItem('isProviderLoggedIn', 'true');
           localStorage.setItem('currentProviderEmail', data.user.email);
           localStorage.setItem('currentProviderId', String(data.provider.id));
-          localStorage.setItem('currentProviderPlan', data.provider.plan || 'Saino Free');
+          localStorage.setItem('currentProviderPlan', data.provider.plan || 'No paid plan');
           window.location.replace('index.html');
         } catch (error) {
-          showNotice('Unable to reach the backend. Start the SAINO backend on port 4000 and try again.', 'error');
+          showNotice('Unable to connect to SAINO server. Please try again shortly.', 'error');
         } finally {
           button.disabled = false;
           button.textContent = 'Login  →';

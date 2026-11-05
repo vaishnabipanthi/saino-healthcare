@@ -43,7 +43,7 @@
     editingDoctorId: null,
     editingServiceId: null,
     appointmentFilter: "all",
-    provider: { name: "", tier: "Saino Free", plan_name: "Saino Free", city: "", rating: 0, reviews_count: 0, plan: "Saino Free", doctor_limit: null, service_limit: null },
+    provider: { name: "", tier: "No paid plan", plan_name: "No paid plan", city: "", rating: 0, reviews_count: 0, plan: "No paid plan", doctor_limit: null, service_limit: null },
     user: { name: "", role: "Provider Admin" },
     stats: { total: 0, marketplace: 0, walkin: 0, qr: 0, telemedicine: 0, waiting: 0 },
     queue: { serving: null, waiting: [], stats: { waiting: 0, completed: 0, issued: 0, avg_consult: 0 } },
@@ -204,7 +204,7 @@
         throw new Error(dashRes.error || 'The backend could not return your provider record.');
       }
       state.provider = dashRes.provider || state.provider;
-      state.provider.tier = state.provider.plan || state.provider.plan_name || 'Saino Free';
+      state.provider.tier = state.provider.plan || state.provider.plan_name || 'No paid plan';
       state.user = dashRes.user || state.user;
       state.stats = dashRes.stats || state.stats;
       state.doctors = docsResult.data.success ? (docsResult.data.rows || []) : [];
@@ -376,7 +376,7 @@
     // 2. Real Clinic Name & Location (Raipur, Chhattisgarh Context)
     const clinicName = state.provider.name || "Provider account";
     const clinicCity = [state.provider.city, state.provider.district, state.provider.province].filter(Boolean).join(', ') || 'Location not provided';
-    const planBadge = state.provider.plan_name || state.provider.plan || state.provider.tier || 'Saino Free';
+    const planBadge = state.provider.plan_name || state.provider.plan || state.provider.tier || 'No paid plan';
 
     app.innerHTML = '<div class="flex min-h-screen">' +
       '<aside class="w-64 bg-slate-900 text-slate-300 flex flex-col flex-shrink-0 border-r border-slate-800">' +
@@ -867,12 +867,11 @@ function renderNotifications() {
 
   function renderBilling() {
     const plans = [
-      { name: 'Saino Free', price: 'INR 0 / month', subtitle: 'Free Forever', features: ['Basic provider profile', 'Organization information', 'Services listing', 'Patient discovery'] },
-      { name: 'Saino Pro', price: 'INR 3,600 / month', subtitle: 'Growing your presence', features: ['Everything in Free', 'Enhanced profile', 'More service information', 'Improved visibility'] },
+      { name: 'Saino Pro', price: 'INR 3,600 / month', subtitle: 'Growing your presence', features: ['Provider profile', 'Organization information', 'Services listing', 'Patient discovery', 'Enhanced profile'] },
       { name: 'Saino VIP', price: 'INR 5,900 / month', subtitle: 'Increasing visibility', features: ['Everything in Pro', 'Featured placement', 'Enhanced marketplace presence', 'More engagement opportunities'] },
       { name: 'Saino VVIP', price: 'INR 9,999 / month', subtitle: 'Maximum visibility', features: ['Everything in VIP', 'Higher visibility', 'Premium placement', 'Advanced marketplace features', 'Priority support'] }
     ];
-    const currentPlan = state.provider.plan || state.provider.plan_name || 'Saino Free';
+    const currentPlan = state.provider.plan || state.provider.plan_name || 'No paid plan';
     return '<div class="mb-5"><h1 class="text-xl font-bold text-slate-900">Subscription & Billing</h1><p class="text-xs text-slate-500 mt-1">Your onboarding plan is saved with your provider account. Plan changes should be completed through the account settings.</p></div>' +
       '<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">' + plans.map(plan =>
         '<div class="bg-white border ' + (plan.name === currentPlan ? 'border-2 border-emerald-500' : 'border-slate-200') + ' rounded-2xl p-5 shadow-sm">' +
@@ -1055,7 +1054,7 @@ function renderNotifications() {
             '<div><label class="font-semibold text-slate-700">Hospital Display Name</label><input name="name" value="' + state.provider.name + '" class="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg"></div>' +
             '<div><label class="font-semibold text-slate-700">City / Location</label><input name="city" value="' + state.provider.city + '" class="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg"></div>' +
             '<div><label class="font-semibold text-slate-700">Admin Staff Name</label><input name="admin_name" value="' + state.user.name + '" class="w-full mt-1 p-2 bg-slate-50 border border-slate-200 rounded-lg"></div>' +
-            '<div><label class="font-semibold text-slate-700">Current Subscription Plan</label><input value="' + (state.provider.plan || 'Saino Free') + '" readonly class="w-full mt-1 p-2 bg-slate-100 border border-slate-200 rounded-lg text-slate-600"><p class="text-[10px] text-slate-500 mt-1">Plan upgrades must go through the subscription/payment flow.</p></div>' +
+            '<div><label class="font-semibold text-slate-700">Current Subscription Plan</label><input value="' + (state.provider.plan || 'No paid plan') + '" readonly class="w-full mt-1 p-2 bg-slate-100 border border-slate-200 rounded-lg text-slate-600"><p class="text-[10px] text-slate-500 mt-1">Plan upgrades must go through the subscription/payment flow.</p></div>' +
             '<div class="pt-4 flex gap-2"><button type="button" class="close-modal flex-1 py-2 bg-slate-100 text-slate-700 rounded-lg font-bold">Cancel</button><button type="submit" class="flex-1 py-2 bg-slate-900 text-white rounded-lg font-bold">Save</button></div>' +
           '</form>' +
         '</div>' +

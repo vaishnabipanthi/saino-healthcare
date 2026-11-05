@@ -313,8 +313,8 @@ function appointmentsListHTML(all) {
 }
 
 function renderAppointmentsView() {
-  return `${savedPageHeader('My Appointments', 'Look up a booking saved in SAINO PostgreSQL.', true)}
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 py-8 mb-16"><div class="rounded-2xl border border-slate-200 bg-white p-5 sm:p-7"><h2 class="text-lg font-black text-slate-900">Track a booking</h2><p class="mt-1 text-xs text-slate-500">Enter the SAINO Booking ID shown after you submit your appointment request.</p><form class="mt-5 flex flex-col sm:flex-row gap-3" onsubmit="lookupLiveBooking(event)"><input id="bookingLookupId" required maxlength="80" placeholder="e.g. SAINO-AB12CD34EF" class="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm uppercase"><button id="bookingLookupButton" class="rounded-xl bg-red-700 px-5 py-3 text-sm font-bold text-white">Check status</button></form><div id="bookingLookupResult" class="mt-5" aria-live="polite"></div></div></div>`;
+  return `${savedPageHeader('My Appointments', 'Look up a booking saved', true)}
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 py-8 mb-16"><div class="rounded-2xl border border-slate-200 bg-white p-5 sm:p-7"><h2 class="text-lg font-black text-slate-900">Track a booking</h2><p class="mt-1 text-xs text-slate-500">Use your private tracking link or enter a booking ID while signed in.</p><form id="bookingLookupForm" class="mt-5 flex flex-col sm:flex-row gap-3" onsubmit="lookupLiveBooking(event)"><input id="bookingLookupId" required maxlength="80" placeholder="e.g. SAINO-AB12CD34EF" class="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm uppercase"><button id="bookingLookupButton" class="rounded-xl bg-red-700 px-5 py-3 text-sm font-bold text-white">Check status</button></form><div id="bookingLookupResult" class="mt-5" aria-live="polite"></div></div></div>`;
 }
 
 /* SAINO Patient Live Appointment Tracking */
@@ -347,7 +347,7 @@ function sainoStatusLabel(status) {
   })[String(status || "").toLowerCase()] || savedTitleCase(status);
 }
 
-function sainoLiveBookingCard(b, bookingRef) {
+function sainoLiveBookingCard(b, bookingRef, allowPatientActions = true) {
   const esc = sainoEscape;
   const status = String(b.status || "pending").toLowerCase();
 
@@ -408,26 +408,27 @@ function sainoLiveBookingCard(b, bookingRef) {
     String(b.consultation_type || b.appointment_type || "")
   );
 
-  const arrivalUI =
-    status === "confirmed" &&
-    arrivalStatus === "not_requested" &&
-    appointmentDay === todayIST &&
-    !isVideo
-      ? `<button onclick="requestPatientArrival()"
-           id="patientArrivalButton"
-           class="mt-4 w-full rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-800">
-           I Have Arrived
-         </button>`
-      : arrivalStatus === "pending"
-        ? `<p class="mt-4 rounded-xl bg-amber-50 p-3 text-sm font-semibold text-amber-800">
-             Arrival request sent. Waiting for reception confirmation.
-           </p>`
-        : arrivalStatus === "confirmed"
-          ? `<p class="mt-4 rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">
-               ✓ Arrival confirmed by reception.
+  const arrivalUI = !allowPatientActions
+    ? ""
+    : status === "confirmed" &&
+      arrivalStatus === "not_requested" &&
+      appointmentDay === todayIST &&
+      !isVideo
+        ? `<button onclick="requestPatientArrival()"
+             id="patientArrivalButton"
+             class="mt-4 w-full rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-800">
+             I Have Arrived
+           </button>`
+        : arrivalStatus === "pending"
+          ? `<p class="mt-4 rounded-xl bg-amber-50 p-3 text-sm font-semibold text-amber-800">
+               Arrival request sent. Waiting for reception confirmation.
              </p>`
-          : "";
-  const reviewUI = status === "completed"
+          : arrivalStatus === "confirmed"
+            ? `<p class="mt-4 rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">
+                 ✓ Arrival confirmed by reception.
+               </p>`
+            : "";
+  const reviewUI = allowPatientActions && status === "completed"
   ? b.has_review
     ? `
       <div class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
@@ -518,9 +519,20 @@ function sainoLiveBookingCard(b, bookingRef) {
       </div>
 
       <div class="mt-5 border-t border-slate-100 pt-4">
+        <p class="text-xs text-slate-500">Patient</p>
+        <h4 class="text-base font-bold text-slate-900">
+          ${esc(b.patient_name || "Patient")}
+        </h4>
+      </div>
+
+      <div class="mt-3 border-t border-slate-100 pt-4">
         <h4 class="text-base font-bold text-slate-900">
           ${esc(b.provider_name || "Healthcare Provider")}
         </h4>
+        <p class="text-xs text-slate-500 mt-1">
+          Doctor: ${esc(b.doctor_name || "To be assigned")}
+          · Room: ${esc(b.room || "To be updated")}
+        </p>
 
         <p class="text-xs text-slate-500 mt-1">
           ${esc(b.appointment_date || "Date not available")}
@@ -528,7 +540,7 @@ function sainoLiveBookingCard(b, bookingRef) {
         </p>
 
         <p class="text-xs text-slate-400 mt-2">
-          Booking ID: ${esc(b.booking_ref || bookingRef)}
+          Booking ID: ${esc(b.booking_id || b.booking_ref || bookingRef)}
         </p>
       </div>
 
@@ -773,24 +785,26 @@ window.requestPatientArrival = async function () {
   }
 };
 
-window.lookupLiveBooking = async function(event) {
+window.lookupLiveBooking = async function(event, options = {}) {
   if (event) event.preventDefault();
 
   const input = document.getElementById("bookingLookupId");
   const button = document.getElementById("bookingLookupButton");
   const output = document.getElementById("bookingLookupResult");
+  const trackingToken = String(options.trackingToken || "");
+  const publicTracking = Boolean(trackingToken);
 
   if (!input || !output) return;
 
   const bookingRef = input.value.trim();
-  if (!bookingRef) return;
+  if (!publicTracking && !bookingRef) return;
 
   const patientToken =
     window.getSainoPatientSession?.()?.token ||
     localStorage.getItem("SAINO_PATIENT_TOKEN") ||
     "";
 
-  if (!patientToken) {
+  if (!publicTracking && !patientToken) {
     output.innerHTML = `
       <p class="text-sm text-red-700">
         Please sign in with your patient ID/email and password first.
@@ -804,7 +818,11 @@ window.lookupLiveBooking = async function(event) {
     sainoTrackingTimer = null;
   }
 
-  sainoActiveBookingRef = bookingRef;
+  const activeReference = publicTracking ? `tracking:${trackingToken}` : bookingRef;
+  sainoActiveBookingRef = activeReference;
+  const lookupUrl = publicTracking
+    ? "/api/public/booking-tracking/" + encodeURIComponent(trackingToken)
+    : "/api/public/bookings/" + encodeURIComponent(bookingRef);
 
   async function refreshBooking() {
     if (!document.getElementById("bookingLookupResult")) {
@@ -816,8 +834,7 @@ window.lookupLiveBooking = async function(event) {
     try {
       const response = await fetch(
         (window.SAINO_API_ORIGIN || "") +
-        "/api/public/bookings/" +
-        encodeURIComponent(bookingRef),
+        lookupUrl,
         {
           cache: "no-store",
           headers: {
@@ -833,7 +850,7 @@ window.lookupLiveBooking = async function(event) {
         throw new Error(payload.error || "Unable to load booking.");
       }
 
-      if (sainoActiveBookingRef !== bookingRef) return;
+      if (sainoActiveBookingRef !== activeReference) return;
 
       const booking = payload.booking;
 
@@ -841,7 +858,7 @@ window.lookupLiveBooking = async function(event) {
         const reviewIsOpen = reviewForm && reviewForm.querySelector("form");
 
         if (!reviewIsOpen) {
-          output.innerHTML = sainoLiveBookingCard(booking, bookingRef);
+          output.innerHTML = sainoLiveBookingCard(booking, booking.booking_ref || bookingRef, !publicTracking);
         }
 
       const status = String(booking.status || "").toLowerCase();
@@ -888,6 +905,14 @@ window.lookupLiveBooking = async function(event) {
       if (!document.hidden) refreshBooking();
     }, 100000);
   }
+};
+
+window.startBookingTrackingFromUrl = function() {
+  const trackingToken = new URLSearchParams(window.location.search).get("bookingTrack");
+  if (!trackingToken) return;
+  const form = document.getElementById("bookingLookupForm");
+  if (form) form.hidden = true;
+  window.lookupLiveBooking(null, { trackingToken });
 };
 
 window.selectAppointmentsTab = function (tab) {

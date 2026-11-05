@@ -350,12 +350,18 @@ function renderApp() {
     case 'discovery':
       mainContainer.innerHTML = renderDiscoveryView();
       bindProvidersShowcaseEvents();
+
+      if (typeof window.loadDiscoverCommunityCards === 'function') {
+        window.loadDiscoverCommunityCards();
+      }
+
       break;
      case "find-healthcare":
       mainContainer.innerHTML = renderFindHealthcareView();
       break;
     case 'appointments':
       mainContainer.innerHTML = renderAppointmentsView();
+      window.startBookingTrackingFromUrl?.();
       break;
     case 'appointment-booking':
       mainContainer.innerHTML = window.renderAppointmentBookingView ? window.renderAppointmentBookingView() : '';
@@ -699,7 +705,7 @@ function renderOpdCards() {
       <div class="flex items-start justify-between gap-4">
         <div class="flex items-start gap-4">
           <div class="w-18 h-18 sm:w-20 sm:h-20 rounded-2xl bg-slate-100 overflow-hidden shrink-0 border border-slate-100">
-          ${item.image ? `<img src="${item.image}" alt="${item.hospital}" class="w-full h-full object-cover">` : ''}
+          ${item.image && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(?:\/|$)/i.test(item.image) ? `<img src="${item.image}" alt="${item.hospital}" class="w-full h-full object-cover">` : ''}
           </div>
           <div>
             <h3 class="font-bold text-sm text-slate-900 leading-snug">${item.hospital}</h3>
@@ -914,7 +920,7 @@ function renderMarketplaceView() {
     <section class="space-y-4">
       <div class="flex items-end justify-between">
         <div class="text-left">
-          <h2 class="text-xl sm:text-2xl font-black text-slate-900">Book Healthcare Services (OPD / UPD)</h2>
+          <h2 class="text-xl sm:text-2xl font-black text-slate-900">Book Healthcare Services (OPD / IPD)</h2>
         </div>
         <button onclick="filterCategory('hospital')" class="text-xs font-bold text-[#ad0b0e] hover:underline flex items-center gap-1">View All →</button>
       </div>
@@ -1060,9 +1066,13 @@ function renderTalkReviewItem(t, idx) {
             <span class="text-saino-gray-400">· ${rating.toFixed(1)}</span>
           </div>
         </div>
-        <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-          Community review
-        </span>
+        <button
+            type="button"
+            onclick="navigateTo('patient')"
+            class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full hover:bg-emerald-100 transition whitespace-nowrap"
+          >
+            Community review →
+          </button>
       </div>
       <p class="text-saino-gray-600 text-[11px] italic leading-relaxed mb-2">
         "${escapeCommunityText(reviewText)}"
@@ -1759,6 +1769,9 @@ function initBigScreenAutoPlay() {
       AppState.activeBigScreenIndex = (AppState.activeBigScreenIndex + 1) % total;
       renderApp();
     }
+    if (AppState.activeView === 'discovery') {
+  window.loadDiscoverCommunityCards();
+}
   }, 8000);
 }
 
@@ -1767,298 +1780,769 @@ function bindCampaignsEvents() {}
    // ==========================================
 // 2. DISCOVERY VIEW
 // ==========================================
-  function renderDiscoveryView() {
-  const liveProviders = window.AppState?.providers || [];
-  const reviewCountFor = provider => Number(provider.reviewsCount ?? provider.reviews_count ?? (Array.isArray(provider.reviews) ? provider.reviews.length : 0)) || 0;
-  const providerRecommendation = (a, b) => Number(b.rating || 0) - Number(a.rating || 0) || reviewCountFor(b) - reviewCountFor(a) || String(b.updated_at || b.created_at || '').localeCompare(String(a.updated_at || a.created_at || ''));
-  const hospitals = liveProviders.filter(provider => String(provider.category || '').toLowerCase() === 'hospital').sort(providerRecommendation).slice(0, 3);
-  const clinics = liveProviders.filter(provider => String(provider.category || '').toLowerCase() === 'clinic').sort(providerRecommendation).slice(0, 3);
-  const otherProviders = liveProviders.filter(provider => !['hospital', 'clinic'].includes(String(provider.category || '').toLowerCase()));
-  const reviews = liveProviders.flatMap(provider => (Array.isArray(provider.reviews) ? provider.reviews : []).map(review => ({ ...review, provider: provider.name }))).filter(review => review.comment || review.body || review.text || review.title).sort((a, b) => Date.parse(b.date || '') - Date.parse(a.date || ''));
-  const discoverySlides = liveProviders.map(provider => {
-    const services = Array.isArray(provider.services) ? provider.services : [];
-    const doctors = Array.isArray(provider.doctors) ? provider.doctors : [];
-    const firstService = services.find(service => service && service.name);
-    const detailLines = services.slice(0, 3).map(service => `<li>${service.name}${service.price ? ` INR ${Number(service.price).toLocaleString('en-IN')}` : ''}</li>`).join('');
-    return {
-      badge: 'LIVE PROVIDER', tier: provider.plan || 'SAINO',
-      titleHtml: `${provider.name || 'Healthcare Provider'}`,
-      hospital: [provider.name, provider.city || provider.location].filter(Boolean).join(' | '),
-      note: provider.description || provider.about || 'Provider profile published on SAINO.',
-      middleLabel: 'Services and doctors',
-      middleContent: detailLines || `<p>${doctors.length} listed doctor profile(s)</p>`,
-      packageName: firstService?.name || 'Provider profile',
-      price: firstService?.price ? `INR ${Number(firstService.price).toLocaleString('en-IN')}` : '',
-      image: provider.cover_image_url || provider.image || provider.logo_url || provider.logo || ''
-    };
-  });
-  if (!discoverySlides.length) return '<section class="mx-auto max-w-5xl p-10 text-center"><h2 class="text-xl font-bold">Healthcare providers will appear here</h2><p class="mt-2 text-slate-600">No approved provider profiles are currently published.</p></section>';
 
-  window._discoverySlides = discoverySlides;
-  if (typeof AppState.discoverySlideIndex === 'undefined') {
+function renderDiscoveryView() {
+  const providers = Array.isArray(AppState.providers)
+    ? AppState.providers
+    : [];
+
+  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  })[char]);
+
+  const categoryOf = p => String(p.category || p.provider_type || '')
+    .toLowerCase().replace(/[\s_-]+/g, '');
+
+  const categoryMap = {
+    hospital: 'Hospitals',
+    clinic: 'Clinics',
+    diagnostic: 'Diagnostic Centers',
+    diagnosticcenter: 'Diagnostic Centers',
+    ambulance: 'Ambulance'
+  };
+
+  const getImage = p =>
+    p.cover_image_url || p.image || p.logo_url || p.logo || '';
+
+  const getLocation = p =>
+    [p.address, p.city].filter(Boolean).join(', ') ||
+    p.location || p.area || 'Location not provided';
+
+  const getReviews = p =>
+    Array.isArray(p.reviews) ? p.reviews : [];
+
+  const getReviewCount = p =>
+    Number(p.reviewsCount ?? p.reviews_count ?? getReviews(p).length) || 0;
+
+  const getRating = p => {
+    const value = Number(p.rating);
+    return Number.isFinite(value) && value > 0 ? value.toFixed(1) : '—';
+  };
+
+  const getServices = p => {
+    const services = Array.isArray(p.services) ? p.services : [];
+    const departments = Array.isArray(p.departments) ? p.departments : [];
+
+    return [
+      ...services.map(s => typeof s === 'string' ? s : s?.name),
+      ...departments
+    ].filter(Boolean).slice(0, 3);
+  };
+
+  const sortedProviders = [...providers].sort((a, b) =>
+    Number(b.rating || 0) - Number(a.rating || 0) ||
+    getReviewCount(b) - getReviewCount(a)
+  );
+
+  const ratedCategories = [
+    { key: 'hospital', title: 'Hospitals' },
+    { key: 'clinic', title: 'Clinics' },
+    { key: 'diagnostic', title: 'Diagnostic Centers' },
+    { key: 'ambulance', title: 'Ambulance' }
+  ];
+
+  const featuredProviders = sortedProviders.filter(p => getImage(p));
+  const slides = featuredProviders.length ? featuredProviders : sortedProviders;
+
+  window._discoverySlides = slides.map(p => ({
+    id: p.id,
+    title: p.name || 'Healthcare Provider',
+    hospital: getLocation(p),
+    note: p.description || p.about || 'Explore this published healthcare provider on SAINO Health.',
+    image: getImage(p),
+    category: p.category || p.provider_type || 'Healthcare Provider',
+    tier: p.plan || p.badgeLabel || 'SAINO VERIFIED'
+  }));
+
+  if (!Number.isInteger(AppState.discoverySlideIndex)) {
     AppState.discoverySlideIndex = 0;
   }
 
-  const s = discoverySlides[AppState.discoverySlideIndex];
+  if (AppState.discoverySlideIndex >= window._discoverySlides.length) {
+    AppState.discoverySlideIndex = 0;
+  }
+
+  const currentSlide = window._discoverySlides[AppState.discoverySlideIndex] || null;
+
+  // Featured provider carousel
+  window.goToDiscoverySlide = function(index) {
+    if (!window._discoverySlides?.length) return;
+    AppState.discoverySlideIndex =
+      (index + window._discoverySlides.length) % window._discoverySlides.length;
+    renderApp();
+  };
+
+  window.nextDiscoverySlide = function() {
+    if (!window._discoverySlides?.length) return;
+    window.goToDiscoverySlide(AppState.discoverySlideIndex + 1);
+  };
+
+  // Nearby provider filters
+  window.applyDiscoveryFilters = function() {
+    const search = (document.getElementById('discoverySearch')?.value || '')
+      .trim().toLowerCase();
+    const location = (document.getElementById('discoveryLocation')?.value || 'all')
+      .toLowerCase();
+    const category = (document.getElementById('discoveryCategory')?.value || 'all')
+      .toLowerCase();
+
+    const cards = document.querySelectorAll('#nearbyProvidersList [data-provider-card]');
+    let visible = 0;
+
+    cards.forEach(card => {
+      const name = (card.dataset.name || '').toLowerCase();
+      const cardLocation = (card.dataset.location || '').toLowerCase();
+      const cardCategory = (card.dataset.category || '').toLowerCase();
+
+      const matchesSearch = !search ||
+        name.includes(search) ||
+        cardLocation.includes(search) ||
+        cardCategory.includes(search);
+
+      const matchesLocation = location === 'all' ||
+        cardLocation.includes(location);
+
+      const matchesCategory = category === 'all' ||
+        cardCategory === category;
+
+      const show = matchesSearch && matchesLocation && matchesCategory;
+      card.classList.toggle('hidden', !show);
+
+      if (show) visible++;
+    });
+
+    const count = document.getElementById('discoveryResultsCount');
+    if (count) count.textContent = `${visible} providers found`;
+  };
+
+  window.resetDiscoveryFilters = function() {
+    const search = document.getElementById('discoverySearch');
+    const location = document.getElementById('discoveryLocation');
+    const category = document.getElementById('discoveryCategory');
+
+    if (search) search.value = '';
+    if (location) location.value = 'all';
+    if (category) category.value = 'all';
+
+    window.applyDiscoveryFilters();
+  };
+
+  // Patient review sorting
+  window.setDiscoveryReviewTab = function(tab) {
+    AppState.discoveryReviewTab = tab;
+    renderApp();
+  };
+
+  const allReviews = providers.flatMap(provider =>
+    getReviews(provider).map(review => ({
+      ...review,
+      providerName: provider.name || 'Healthcare Provider',
+      providerId: provider.id,
+      providerCategory: provider.category
+    })).filter(review =>
+      review.comment || review.rating
+    )
+  );
+
+  const reviewTab = AppState.discoveryReviewTab || 'recent';
+
+  const displayedReviews = [...allReviews].sort((a, b) => {
+    if (reviewTab === 'highest') {
+      return Number(b.rating || 0) - Number(a.rating || 0);
+    }
+
+    if (reviewTab === 'lowest') {
+      return Number(a.rating || 0) - Number(b.rating || 0);
+    }
+
+    return Date.parse(b.date || '') - Date.parse(a.date || '');
+  }).slice(0, 6);
+
+  const locations = [...new Set(
+    providers.map(p => p.city || p.district || p.province).filter(Boolean)
+  )].sort();
+
+  const providerCards = providers.map(provider => {
+    const name = esc(provider.name || 'Healthcare Provider');
+    const category = categoryOf(provider);
+    const categoryLabel = categoryMap[category] || 'Healthcare Provider';
+    const location = getLocation(provider);
+    const image = getImage(provider);
+    const services = getServices(provider);
+    const rating = getRating(provider);
+    const reviewCount = getReviewCount(provider);
+    const address = esc(location);
+    const safeName = esc(provider.name || '');
+
+    return `
+      <article
+        data-provider-card
+        data-location="${esc(location.toLowerCase())}"
+        data-category="${esc(category)}"
+        data-name="${name.toLowerCase()}"
+        data-provider-name="${safeName}"
+        class="group flex min-w-0 gap-3 sm:gap-4 rounded-xl border border-slate-200 bg-white p-3 sm:p-4 shadow-sm hover:border-red-200 hover:shadow-md transition cursor-pointer"
+        role="link"
+        tabindex="0"
+        aria-label="Open ${name} profile"
+        onclick="window.openDiscoveryProviderProfile(this.dataset.providerName, '${esc(category)}')"
+        onkeydown="if(event.key==='Enter'){window.openDiscoveryProviderProfile(this.dataset.providerName, '${esc(category)}')}"
+      >
+        <div class="w-24 h-24 sm:w-32 sm:h-32 shrink-0 overflow-hidden rounded-lg bg-slate-100 border border-slate-100">
+          ${image
+            ? `<img src="${esc(image)}" alt="${name}" class="w-full h-full object-cover" loading="lazy">`
+            : `<div class="w-full h-full flex items-center justify-center text-slate-300"><i data-lucide="hospital" class="w-9 h-9"></i></div>`
+          }
+        </div>
+
+        <div class="flex-1 min-w-0">
+          <div class="flex flex-wrap items-start justify-between gap-1">
+            <span class="text-[10px] font-bold uppercase tracking-wide text-red-700">
+              ${esc(categoryLabel)}
+            </span>
+            <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-bold text-emerald-700">
+              <i data-lucide="badge-check" class="w-3 h-3"></i>
+              Verified
+            </span>
+          </div>
+
+          <h4 class="mt-1 text-sm sm:text-base font-bold text-slate-900 leading-snug break-words">
+            ${name}
+          </h4>
+
+          <div class="mt-1 flex flex-wrap items-center gap-2 text-xs">
+            <span class="font-bold text-amber-600">★ ${rating}</span>
+            <span class="text-slate-500">${reviewCount} reviews</span>
+          </div>
+
+          <div class="mt-2 flex flex-wrap gap-1">
+            ${services.map(service => `
+              <span class="rounded-md bg-slate-100 px-2 py-1 text-[10px] text-slate-600">
+                ${esc(service)}
+              </span>
+            `).join('')}
+          </div>
+
+          <div class="mt-2 flex items-start gap-1 text-[11px] text-slate-500">
+            <i data-lucide="map-pin" class="w-3 h-3 mt-0.5 shrink-0"></i>
+            <span class="break-words">${address}</span>
+          </div>
+
+          ${provider.openingHours ? `
+            <div class="mt-1 flex items-center gap-1 text-[10px] text-slate-500">
+              <i data-lucide="clock" class="w-3 h-3"></i>
+              ${esc(provider.openingHours)}
+            </div>
+          ` : ''}
+        </div>
+      </article>
+    `;
+  }).join('');
+
+  const ratedPanel = (item) => {
+    const matches = sortedProviders
+      .filter(p => categoryOf(p) === item.key)
+      .slice(0, 5);
+
+    return `
+      <div class="rounded-xl border border-slate-200 bg-white p-4">
+        <h4 class="mb-3 flex items-center justify-between text-sm font-bold text-slate-900">
+          ${item.title}
+          <span class="text-[10px] font-medium text-slate-400">${matches.length} listed</span>
+        </h4>
+
+        <div class="flex flex-col gap-2">
+          ${matches.length ? matches.map(p => `
+            <div class="flex items-center justify-between gap-2 rounded-lg px-2 py-2 hover:bg-rose-50 cursor-pointer"
+              data-provider-name="${esc(p.name || '')}"
+              data-provider-category="${esc(categoryOf(p))}"
+              role="link"
+              tabindex="0"
+              aria-label="Open ${esc(p.name || '')} profile">
+              <span class="min-w-0 truncate text-xs font-semibold text-slate-700">
+                ${esc(p.name || 'Healthcare Provider')}
+              </span>
+              <span class="shrink-0 text-xs font-bold text-amber-600">
+                ★ ${getRating(p)}
+              </span>
+            </div>
+          `).join('') : `
+            <p class="py-2 text-xs text-slate-400">No published listings yet.</p>
+          `}
+        </div>
+      </div>
+    `;
+  };
+
+  const reviewCard = review => `
+    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <p class="text-sm font-bold text-slate-900">
+            ${esc(review.user || review.patient_name || 'Patient')}
+          </p>
+          <p class="mt-0.5 text-[11px] text-slate-500">
+            ${esc(review.providerName)}
+          </p>
+        </div>
+        <span class="shrink-0 rounded-md bg-amber-50 px-2 py-1 text-xs font-bold text-amber-700">
+          ★ ${Number(review.rating || 0).toFixed(1)}
+        </span>
+      </div>
+
+      <p class="mt-3 text-xs leading-relaxed text-slate-600">
+        ${esc(review.comment || review.body || review.text || '')}
+      </p>
+
+      <div class="mt-3 flex items-center justify-between border-t border-slate-100 pt-2">
+        <span class="text-[10px] text-slate-400">
+          ${esc(review.date ? new Date(review.date).toLocaleDateString() : '')}
+        </span>
+        ${review.verified_visit ? `
+          <span class="text-[10px] font-semibold text-emerald-700">
+            Verified visit
+          </span>
+        ` : ''}
+      </div>
+    </article>
+  `;
 
   return `
-    <div class="w-full mb-16 px-0">  
+    <div class="w-full mb-14">
+
       <style>
-        @media (max-width: 767px) {
+        #discoveryCampaignHero {
+          background: #0a0f1d;
+        }
+
+        #nearbyProvidersList {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        #nearbyProvidersList [data-provider-card].hidden {
+          display: none;
+        }
+
+        @media(max-width: 640px) {
           #discoveryCampaignHero {
-            height: auto;
-            min-height: 390px;
-            overflow: hidden;
+            min-height: 220px;
           }
-          #discoveryCampaignHero > .absolute.inset-y-0.right-0 {
-            display: none;
+
+          #discoveryCampaignHero .hero-content {
+            padding: 18px 12px;
           }
-          #discoveryCampaignHero .discovery-campaign-layout {
-            height: auto;
-            min-height: 390px;
-            flex-direction: row;
-            align-items: center;
+
+          #discoveryCampaignHero .hero-image {
+            width: 38%;
           }
-          #discoveryCampaignHero .discovery-campaign-layout > div:first-child {
-            width: 42%;
-            height: clamp(112px, 32vw, 136px);
-            flex: 0 0 42%;
-            margin: 0;
-            padding: 6px 4px 6px 6px;
-          }
-          #discoveryCampaignHero #discSlideImg {
-            display: block;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-          }
-          #discoveryCampaignHero .discovery-campaign-layout > div:last-child {
-            width: auto;
-            height: auto;
-            min-width: 0;
-            flex: 1 1 0;
-            overflow: visible;
-            padding: 28px 34px 38px 4px;
-          }
-          #discoveryCampaignHero #discSlideTitle {
-            font-size: clamp(11px, 3.3vw, 13px);
-            line-height: 1.15;
-            overflow-wrap: break-word;
-          }
-          #discoveryCampaignHero #discSlideHospital {
-            font-size: clamp(8px, 2.5vw, 10px);
-            line-height: 1.2;
-            overflow-wrap: break-word;
-          }
-          #discoveryCampaignHero #discSlideNote {
-            font-size: 8px;
-            line-height: 1.2;
-          }
-          #discoveryCampaignHero .discovery-campaign-layout > div:last-child > div > .mb-3\\.5 {
-            margin-bottom: 6px;
-          }
-          #discoveryCampaignHero #discSlideMiddleLabel,
-          #discoveryCampaignHero #discSlidePackageName {
-            font-size: 8px;
-          }
-          #discoveryCampaignHero #discSlidePrice {
-            font-size: 9px;
-          }
-          #discoveryCampaignHero #discSlideMiddleLabel + div {
-            font-size: 8px;
-          }
-          #discoveryCampaignHero #discSlideMiddleBox {
-            font-size: 8px;
-          }
-          #discoveryCampaignHero .discovery-campaign-layout > div:last-child .mb-3\\.5.text-\\[11px\\] {
-            min-height: 36px;
-            margin-bottom: 6px;
-          }
-          #discoveryCampaignHero button[aria-label="Next featured campaign"] {
-            top: 50%;
-            right: 8px;
-            width: 28px;
-            height: 28px;
-            transform: translateY(-50%);
-            touch-action: manipulation;
-          }
-          #nearbyProvidersList,
-          #nearbyProvidersList > [data-location][data-category] {
-            width: 100%;
-            min-width: 0;
-          }
-          #nearbyProvidersList h4 {
-            max-width: 100%;
-            min-width: 0;
-            white-space: normal;
-            overflow-wrap: anywhere;
-          }
-          #sainoRatedResults > .grid {
-            grid-template-columns: minmax(0, 1fr);
-          }
-          #sainoRatedResults .truncate {
-            white-space: normal;
-            overflow: visible;
-            text-overflow: clip;
-            overflow-wrap: anywhere;
+
+          #discoveryCampaignHero .hero-image img {
+            height: 145px;
           }
         }
       </style>
-       <section id="discoveryCampaignHero" class="relative overflow-hidden bg-[#0a0f1d] text-white shadow-xl mb-8 border-y border-slate-800 w-full h-[350px] md:h-[530px]">
-            <a 
-                href="#video-library" 
-                onclick="event.preventDefault(); navigateTo('campaigns')"
-               class="absolute top-2 right-4 sm:right-6 md:top-8 md:right-12 z-20 inline-flex items-center space-x-1 px-1.5 py-1 md:px-4 md:py-2.5 rounded-md bg-[#334155]/80 border border-slate-400/40 text-slate-200 text-[9px] md:text-xs">
-              <svg class="w-3 h-3 sm:w-5 sm:h-5 text-slate-200 shrink-0 stroke-[1.5]" 
-                  viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <rect x="2" y="3" width="20" height="14" rx="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <line x1="8" y1="21" x2="16" y2="21" stroke-linecap="round"/>
-                <line x1="12" y1="17" x2="12" y2="21" stroke-linecap="round"/>
-                <polygon points="10 7 15 10 10 13" fill="currentColor" stroke="none"/>
-              </svg>
 
-              <span class="text-[8px] sm:text-xs">Video Library</span>
+      <!-- FEATURED PROVIDER BANNER -->
+      ${currentSlide ? `
+        <section id="discoveryCampaignHero"
+          class="relative mb-8 flex min-h-[300px] w-full items-center overflow-hidden border-y border-slate-800 text-white shadow-xl md:min-h-[390px]">
 
-              <svg class="w-2.5 h-2.5 sm:w-3 sm:h-3 text-slate-400 stroke-[2]" 
-                  fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
-              </svg>
-            </a>
-        <div class="absolute inset-y-0 right-0 w-[450px] md:w-[610px] bg-gradient-to-l from-slate-800 via-slate-800/60 to-transparent pointer-events-none z-0"></div>
-        <div class="discovery-campaign-layout flex flex-row items-stretch h-full">
-          <div class="w-[200px] md:w-[400px] md:h-[460px] md:ml-20 h-[300px] mt-[19px] mb-[16px] ml-18 relative overflow-hidden p-2 shrink-0">
-            <img 
-              id="discSlideImg" 
-              src="${s.image}" 
-              alt="${s.hospital}" 
-              class="w-full h-full object-cover rounded-[12px] select-none"
-              style="image-rendering: -webkit-optimize-contrast;"
-              loading="eager">
-          </div>
-          <div class="flex-1 py-2 px-3 md:py-8 md:px-12 flex flex-col justify-center text-left h-full overflow-hidden w-full">
-            <div>
-               <div class="flex flex-row items-center gap-1 sm:gap-3 mb-1 sm:mb-3">
-              <a 
-                  href="#featured-campaign" 
-                  onclick="navigateTo('marketplace')" 
-                  id="discSlideBadge" 
-                  class="px-0.5 py-0.5 sm:px-3 sm:py-2 rounded-lg text-[6px] sm:text-xs md:text-[15px] font-bold tracking-wide text-white-600 bg-[#162032] border-2 border-purple-500 hover:border-purple-400 hover:bg-purple-950/40 transition-all duration-150 inline-flex items-center justify-center cursor-pointer select-none">
-                  ${s.badge || 'FEATURED HEALTH CAMPAIGN'}
-                </a>
-               <a 
-                  href="#vvip-info" 
-                  onclick="navigateTo('marketplace')" 
-                  id="discSlideTier" 
-                  class="px-1 py-0.5 sm:px-3 sm:py-2 rounded-lg text-[8px] sm:text-xs md:text-[15px] font-bold tracking-wide text-white-600 bg-[#162032] border-2 border-purple-500 hover:border-purple-400 hover:bg-purple-950/40 transition-all duration-150 inline-flex items-center justify-center cursor-pointer select-none">
-                  ${s.tier || 'VVIP'}
-                </a>
+          <div class="absolute inset-0 bg-gradient-to-r from-[#0a0f1d] via-[#101a2b] to-[#18243a]"></div>
+
+          <div class="hero-content relative z-10 flex w-full items-center gap-4 p-5 sm:gap-8 sm:p-8 md:px-14">
+
+            <div class="hero-image w-[40%] shrink-0 md:w-[38%]">
+              ${currentSlide.image ? `
+                <img src="${esc(currentSlide.image)}"
+                  alt="${esc(currentSlide.title)}"
+                  class="h-[180px] w-full rounded-xl border border-white/10 object-cover shadow-xl sm:h-[230px] md:h-[290px]"
+                  loading="eager">
+              ` : `
+                <div class="flex h-[180px] items-center justify-center rounded-xl bg-slate-800 sm:h-[230px] md:h-[290px]">
+                  <i data-lucide="hospital" class="h-12 w-12 text-slate-500"></i>
+                </div>
+              `}
             </div>
 
-        <h2 id="discSlideTitle" class="mt-1 text-[10px] sm:text-xs md:text-2xl font-extrabold text-white leading-tight mb-1 md:mb-3 drop-shadow-md">
-          ${s.titleHtml}
+            <div class="min-w-0 flex-1">
+              <div class="mb-3 flex flex-wrap items-center gap-2">
+                <span class="rounded-md border border-purple-400/60 bg-purple-950/40 px-2 py-1 text-[9px] font-bold tracking-wide sm:text-xs">
+                  FEATURED PROVIDER
+                </span>
+                <span class="rounded-md border border-amber-400/40 bg-amber-950/30 px-2 py-1 text-[9px] font-bold text-amber-300 sm:text-xs">
+                  ${esc(currentSlide.tier)}
+                </span>
+              </div>
+
+              <h2 class="text-base font-extrabold leading-tight sm:text-xl md:text-3xl">
+                ${esc(currentSlide.title)}
+              </h2>
+
+              <p class="mt-2 text-[10px] text-slate-300 sm:text-sm">
+                ${esc(currentSlide.hospital)}
+              </p>
+
+              <p class="mt-3 max-w-lg text-[10px] leading-relaxed text-slate-400 sm:text-xs md:text-sm">
+                ${esc(currentSlide.note)}
+              </p>
+
+              <div class="mt-5 flex flex-wrap items-center gap-2">
+                <button type="button"
+                  onclick="window.openProviderProfile('${esc(currentSlide.id)}')"
+                  class="rounded-full bg-white px-4 py-2 text-[10px] font-bold text-slate-900 hover:bg-slate-100 sm:text-xs">
+                  View Provider
+                </button>
+
+                <button type="button"
+                  onclick="navigateTo('marketplace')"
+                  class="rounded-full border border-white/30 px-4 py-2 text-[10px] font-bold text-white hover:bg-white/10 sm:text-xs">
+                  Browse Services →
+                </button>
+              </div>
+            </div>
+          </div>
+
+          ${slides.length > 1 ? `
+            <button type="button"
+              onclick="window.nextDiscoverySlide()"
+              aria-label="Next featured provider"
+              class="absolute right-3 top-1/2 z-20 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white text-slate-900 shadow-lg sm:right-6 sm:h-10 sm:w-10">
+              <i data-lucide="chevron-right" class="h-5 w-5"></i>
+            </button>
+
+            <div class="absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 gap-2">
+              ${slides.map((_, index) => `
+                <button type="button"
+                  onclick="window.goToDiscoverySlide(${index})"
+                  aria-label="Show featured provider ${index + 1}"
+                  class="h-2 w-2 rounded-full ${index === AppState.discoverySlideIndex ? 'bg-white' : 'bg-white/30'}">
+                </button>
+              `).join('')}
+            </div>
+          ` : ''}
+        </section>
+      ` : ''}
+
+      <div class="space-y-10 px-4 sm:px-6">
+
+        <!-- NEARBY HEALTHCARE PROVIDERS -->
+        <section>
+          <div class="mb-5 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <span class="text-[10px] font-black uppercase tracking-widest text-red-700">
+                Explore healthcare
+              </span>
+              <h2 class="mt-1 text-xl font-black text-slate-900 sm:text-2xl">
+                Nearby Healthcare Providers
+              </h2>
+              <p class="mt-1 text-xs text-slate-500">
+                Find hospitals, clinics, diagnostic centers and healthcare services.
+              </p>
+            </div>
+
+            <span id="discoveryResultsCount" class="text-xs font-semibold text-slate-500">
+              ${providers.length} providers found
+            </span>
+          </div>
+
+          <div class="mb-5 grid grid-cols-1 gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:grid-cols-2 lg:grid-cols-4">
+            <div class="relative">
+              <i data-lucide="search" class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"></i>
+              <input id="discoverySearch"
+                type="search"
+                placeholder="Search provider..."
+                oninput="window.applyDiscoveryFilters()"
+                class="w-full rounded-lg border border-slate-200 py-2.5 pl-9 pr-3 text-xs outline-none focus:border-red-400">
+            </div>
+
+            <select id="discoveryLocation"
+              onchange="window.applyDiscoveryFilters()"
+              class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs text-slate-700 outline-none focus:border-red-400">
+              <option value="all">All Locations</option>
+              ${locations.map(location => `
+                <option value="${esc(location.toLowerCase())}">${esc(location)}</option>
+              `).join('')}
+            </select>
+
+            <select id="discoveryCategory"
+              onchange="window.applyDiscoveryFilters()"
+              class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs text-slate-700 outline-none focus:border-red-400">
+              <option value="all">All Categories</option>
+              <option value="hospital">Hospitals</option>
+              <option value="clinic">Clinics</option>
+              <option value="diagnostic">Diagnostic Centers</option>
+              <option value="ambulance">Ambulance</option>
+            </select>
+
+            <button type="button"
+              onclick="window.resetDiscoveryFilters()"
+              class="rounded-lg bg-[#ad0b0e] px-4 py-2.5 text-xs font-bold text-white hover:bg-red-800">
+              Reset Filters
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.65fr)_minmax(280px,0.85fr)]">
+
+            <div id="nearbyProvidersList">
+              ${providerCards || `
+                <div class="rounded-xl border border-slate-200 bg-white p-8 text-center">
+                  <i data-lucide="hospital" class="mx-auto h-9 w-9 text-slate-300"></i>
+                  <p class="mt-3 text-sm font-semibold text-slate-700">
+                    No approved healthcare providers available yet.
+                  </p>
+                  <p class="mt-1 text-xs text-slate-500">
+                    Published provider listings will appear here.
+                  </p>
+                </div>
+              `}
+            </div>
+
+            <!-- SAINO RATED -->
+            <aside>
+              <div class="mb-3">
+                <span class="text-[10px] font-black uppercase tracking-widest text-red-700">
+                  Patient ratings
+                </span>
+                <h3 class="mt-1 text-lg font-black text-slate-900">
+                  Saino Rated
+                </h3>
+                <p class="mt-1 text-xs text-slate-500">
+                  Top-rated providers based on available patient ratings.
+                </p>
+              </div>
+
+              <div id="sainoRatedResults" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                ${ratedCategories.map(ratedPanel).join('')}
+              </div>
+            </aside>
+          </div>
+        </section>
+                
+          <!-- COMMUNITY - PEOPLE ARE TALKING ABOUT -->
+          <section class="rounded-xl bg-slate-50 px-4 py-6 sm:px-6 sm:py-8">
+            <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <span class="text-[10px] font-black uppercase tracking-widest text-red-700">
+                  Community
+                </span>
+                <h2 class="mt-1 text-xl font-black text-slate-900">
+                  People Are Talking About
+                </h2>
+                <p class="mt-1 text-xs text-slate-500">
+                  Questions and conversations about healthcare providers.
+                </p>
+              </div>
+
+              <button type="button"
+                onclick="navigateTo('discussions')"
+                class="text-xs font-bold text-red-700 hover:underline">
+                View All Discussions →
+              </button>
+            </div>
+
+            <div id="discoverCommunityCards"
+                class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <p class="col-span-full text-sm text-slate-500">
+                Loading community discussions...
+              </p>
+            </div>
+          </section>
+
+        <!-- PATIENT VOICES -->
+        <section>
+          <div class="mb-5 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <span class="text-[10px] font-black uppercase tracking-widest text-red-700">
+                Real experiences
+              </span>
+              <h2 class="mt-1 text-xl font-black text-slate-900 sm:text-2xl">
+                What Patients Are Saying
+              </h2>
+              <p class="mt-1 text-xs text-slate-500">
+                Reviews shared on published provider profiles.
+              </p>
+            </div>
+
+            <button type="button"
+              onclick="navigateTo('patient')"
+              class="text-xs font-bold text-red-700 hover:underline">
+              Read all reviews →
+            </button>
+          </div>
+
+          <div class="mb-4 flex flex-wrap gap-2">
+            <button type="button"
+              onclick="window.setDiscoveryReviewTab('recent')"
+              class="rounded-full px-4 py-2 text-xs font-bold ${reviewTab === 'recent' ? 'bg-[#ad0b0e] text-white' : 'border border-slate-200 bg-white text-slate-600'}">
+              Most Recent
+            </button>
+
+            <button type="button"
+              onclick="window.setDiscoveryReviewTab('highest')"
+              class="rounded-full px-4 py-2 text-xs font-bold ${reviewTab === 'highest' ? 'bg-[#ad0b0e] text-white' : 'border border-slate-200 bg-white text-slate-600'}">
+              Highest Rated
+            </button>
+
+            <button type="button"
+              onclick="window.setDiscoveryReviewTab('lowest')"
+              class="rounded-full px-4 py-2 text-xs font-bold ${reviewTab === 'lowest' ? 'bg-[#ad0b0e] text-white' : 'border border-slate-200 bg-white text-slate-600'}">
+              Lowest Rated
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+            ${displayedReviews.length
+              ? displayedReviews.map(reviewCard).join('')
+              : `
+                <div class="col-span-full rounded-xl border border-slate-200 bg-white p-8 text-center">
+                  <i data-lucide="message-square" class="mx-auto h-8 w-8 text-slate-300"></i>
+                  <p class="mt-3 text-sm font-semibold text-slate-700">
+                    No patient reviews available yet.
+                  </p>
+                  <p class="mt-1 text-xs text-slate-500">
+                    Published patient reviews will appear here.
+                  </p>
+                </div>
+              `
+            }
+          </div>
+        </section>
+      
+      <!-- HAVE A QUESTION CTA -->
+      <section class="rounded-xl bg-[#17243d] px-5 py-10 text-center text-white sm:py-14">
+        <div class="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-red-900/40 text-red-400">
+          <i data-lucide="message-circle" class="h-5 w-5"></i>
+        </div>
+
+        <h2 class="mx-auto mt-4 max-w-xl text-xl font-black">
+          Have a Question About a Healthcare Provider?
         </h2>
 
-        <h3 id="discSlideHospital" class="mt-1 text-[9px] sm:text-xs md:text-sm font-bold text-white mb-2">
-          ${s.hospital || 'Grande International Hospital · Kathmandu'}
-        </h3>
-
-        <p id="discSlideNote" class="text-[8px] md:text-xs text-slate-300 max-w-sm leading-tight mb-1 md:mb-3.5">
-          ${s.note || ''}
+        <p class="mx-auto mt-3 max-w-lg text-xs leading-relaxed text-slate-300">
+          Ask patients who have been there and get real, experience-based answers from the SAINO community.
         </p>
 
-        <div class="mb-3.5 text-[11px] text-slate-300 min-h-[72px]">
-          <span id="discSlideMiddleLabel" class="text-[10px] text-slate-400 font-medium block mb-1">${s.middleLabel}</span>
-          <div id="discSlideMiddleBox">
-            ${s.middleContent}
-          </div>
-        </div>
-        
-      <div class="mb-3.5 leading-tight">
-        <span id="discSlidePackageName" class="text-[10px] text-slate-300 font-medium block mb-0.5">${s.packageName}</span>
-        <span id="discSlidePrice" class="text-xs font-bold text-white tracking-wide">${s.price}</span>
-        </div>
-      </div>
-      <div class="flex items-center space-x-2 mt-1 mb-1 z-20">
-         <button 
+        <button
           type="button"
-          onclick="triggerCampaignWhatsApp()" 
-          class="h-6 px-2 sm:h-8 sm:px-4 rounded-full border border-slate-600 bg-[#152136] hover:bg-[#1c2c47] text-white text-[10px] sm:text-xs font-medium tracking-wide flex items-center justify-center space-x-2 transition shadow-sm cursor-pointer">
-         <span class="text-[8px] sm:text-xs">View provider</span>
+          onclick="navigateTo('discussions')"
+          class="mt-6 inline-flex items-center gap-2 rounded-lg bg-red-700 px-6 py-3 text-xs font-bold text-white transition hover:bg-red-800">
+          <i data-lucide="message-circle" class="h-4 w-4"></i>
+          Ask the Community
         </button>
-
-        <button 
-          onclick="navigateTo('marketplace')" 
-          class="h-6 px-2 sm:h-8 sm:px-4 rounded-full bg-white hover:bg-slate-100 text-[#881337] text-[10px] sm:text-xs font-bold shadow-xs flex items-center justify-center space-x-1.5 transition cursor-pointer">
-          <span class="text-[8px] sm:text-xs">Browse services</span>
-          <span class="text-[10px] sm:text-xs font-black leading-none text-[#881337]">→</span>
-        </button>
-
-      </div>
-          <p id="discSlideValidity" class="text-[9px] sm:text-xs md:text-sm text-slate-400/60 font-normal tracking-wide mt-1 sm:mt-2 select-none">
-            SAINO marketplace provider listing
-          </p>
-            <button type="button" onclick="window.nextDiscoverySlide()" aria-label="Next featured campaign" class="absolute right-6 sm:right-12 md:right-32 top-1/2 -translate-y-1/2 w-6 h-6 sm:w-10 sm:h-10 rounded-full bg-white text-black
-               flex items-center justify-center shadow-xl z-30"> <svg class="w-3 h-3 sm:w-5 sm:h-5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
-              </svg>
-            </button>
-                    
-            <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center space-x-1 sm:space-x-2 z-30">
-              ${discoverySlides.map((_, index) => `<button onclick="goToDiscoverySlide(${index})" class="p-1 cursor-pointer"><span class="disc-dot block rounded-full transition-all duration-300 ${AppState.discoverySlideIndex === index ? 'w-1.5 h-1.5 bg-white' : 'w-2 h-2 bg-white/30 hover:bg-white/60'}"></span></button>`).join('')}
-            </div>
-        </div>
       </section>
 
-      <div class="space-y-12 px-4 sm:px-6">
-        <section>
-          <div class="mb-5 flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 pb-3"><div><span class="text-xs font-black uppercase tracking-wider text-saino-red">Patient picks</span><h2 class="mt-1 text-xl font-black text-slate-900">Trending Hospitals</h2><p class="mt-1 text-xs text-slate-500">Suggested from live patient ratings and review activity.</p></div><button onclick="navigateTo('hospital')" class="text-xs font-bold text-saino-red hover:underline">Browse all hospitals →</button></div>
-          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">${hospitals.map(provider => renderProviderCard(provider)).join('') || '<p class="col-span-full rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">No hospital profiles have been published yet. New verified listings will show here.</p>'}</div>
-        </section>
-        <section>
-          <div class="mb-5 flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 pb-3"><div><span class="text-xs font-black uppercase tracking-wider text-saino-red">Nearby care</span><h2 class="mt-1 text-xl font-black text-slate-900">Trending Clinics</h2><p class="mt-1 text-xs text-slate-500">Compare clinic profiles, doctors, services and patient reviews.</p></div><button onclick="navigateTo('clinic')" class="text-xs font-bold text-saino-red hover:underline">Browse all clinics →</button></div>
-          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">${clinics.map(provider => renderProviderCard(provider)).join('') || '<p class="col-span-full rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">No clinic profiles have been published yet. New verified listings will show here.</p>'}</div>
-        </section>
-        ${otherProviders.length ? `<section><div class="mb-5 flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 pb-3"><div><span class="text-xs font-black uppercase tracking-wider text-saino-red">More care options</span><h2 class="mt-1 text-xl font-black text-slate-900">Other Approved Providers</h2><p class="mt-1 text-xs text-slate-500">Live listings for diagnostics, wellness and other services.</p></div></div><div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">${otherProviders.map(provider => renderProviderCard(provider)).join('')}</div></section>` : ''}
-        <section>
-          <div class="mb-5 flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 pb-3"><div><span class="text-xs font-black uppercase tracking-wider text-saino-red">Community</span><h2 class="mt-1 text-xl font-black text-slate-900">Patient Reviews</h2><p class="mt-1 text-xs text-slate-500">Experiences shared on published provider profiles.</p></div><button onclick="navigateTo('patient')" class="text-xs font-bold text-saino-red hover:underline">Read all reviews →</button></div>
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">${reviews.slice(0, 6).map((review, index) => renderTalkReviewItem(review, index)).join('') || '<p class="col-span-full rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">No patient reviews have been published yet.</p>'}</div>
-        </section>
       </div>
-    <div class="relative overflow-hidden bg-[#0a0f1d] text-white shadow-xl mb-8 
-            w-screen -mx-[calc((100vw-100%)/2)] 
-            py-10 sm:py-16 px-4 sm:px-12 lg:px-26 
-            rounded-none sm:rounded-2xl text-center">
-        <div class="relative z-10">
-          <!-- Icon -->
-          <div class="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-[#B91C1C] backdrop-blur-sm 
-                      flex items-center justify-center mx-auto mb-3 sm:mb-4 relative">
-            <i data-lucide="message-circle" class="w-5 h-5 sm:w-7 sm:h-7 text-white"></i>
-          </div>
-
-          <!-- Heading -->
-          <h3 class="text-base sm:text-xl lg:text-2xl font-bold text-white">
-            Have a question about a healthcare <br class="hidden sm:block"> provider?
-          </h3>
-
-          <!-- Paragraph -->
-          <p class="text-xs sm:text-sm lg:text-base text-white/60 mt-2 sm:mt-3 max-w-3xl mx-auto leading-relaxed">
-            Ask patients who have been there and get real, experience-based answers from the 
-            <br class="hidden sm:block"> Saino Community.
-          </p>
-
-          <!-- Button -->
-          <button onclick="navigateTo('discussions')"
-            class="mt-4 sm:mt-6 px-4 py-2 sm:px-6 sm:py-3 lg:px-8 lg:py-4 bg-[#B91C1C] text-white 
-                  text-xs sm:text-sm lg:text-base font-bold rounded-full hover:bg-[#991B1B] 
-                  transition shadow-lg inline-flex items-center gap-2">
-            <i data-lucide="message-circle" class="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6"></i>
-            <span>Ask the Community</span>
-          </button> 
-        </div>
-      </div>
-
+    </div>
   `;
 }
+window.loadDiscoverCommunityCards = async function () {
+  const container = document.getElementById('discoverCommunityCards');
+  if (!container) return;
+
+  container.innerHTML = `
+    <p class="col-span-full text-sm text-slate-500">
+      Loading community discussions...
+    </p>
+  `;
+
+  try {
+    const response = await fetch('/api/public/community-discussions');
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Unable to load discussions');
+    }
+
+    const discussions = Array.isArray(data.discussions)
+      ? data.discussions
+      : [];
+
+    if (!discussions.length) {
+      container.innerHTML = `
+        <p class="col-span-full rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+          No community questions have been posted yet.
+        </p>
+      `;
+      return;
+    }
+
+    const escHTML = value => String(value ?? '').replace(/[&<>"']/g, char => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    })[char]);
+
+    container.innerHTML = discussions.slice(0, 4).map(item => {
+      const patient = escHTML(item.patient_name || 'Patient');
+      const question = escHTML(item.question || '');
+      const category = escHTML(item.category || 'General');
+      const initials = patient
+        .split(/\s+/)
+        .slice(0, 2)
+        .map(word => word[0] || '')
+        .join('')
+        .toUpperCase();
+
+      const date = item.created_at
+        ? new Date(item.created_at).toLocaleDateString()
+        : 'Recently';
+
+      return `
+        <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div class="flex items-center gap-2">
+            <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-50 text-xs font-bold text-red-700">
+              ${initials}
+            </div>
+
+            <div class="min-w-0">
+              <p class="truncate text-xs font-bold text-slate-800">
+                ${patient}
+              </p>
+              <p class="text-[10px] text-slate-400">
+                ${date}
+              </p>
+            </div>
+          </div>
+
+          <span class="mt-3 inline-block rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">
+            ${category}
+          </span>
+
+          <p class="mt-3 min-h-[65px] text-xs leading-relaxed text-slate-700">
+            ${question}
+          </p>
+          <div class="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+
+            <div class="flex items-center gap-4">
+
+
+            </div>
+
+          </div>
+
+        </article>
+      `;
+    }).join('');
+
+  } catch (error) {
+    console.error('Discover community loading error:', error);
+
+    container.innerHTML = `
+      <p class="col-span-full rounded-xl border border-red-100 bg-white p-5 text-center text-sm text-red-600">
+        Unable to load community discussions. Please try again.
+      </p>
+    `;
+  }
+};
+
 window.renderReviewsPage = function() {
   const reviews = (window.AppState?.providers || []).flatMap(provider => (provider.reviews || []).map(review => ({ ...review, provider: provider.name })));
   return `
@@ -2681,12 +3165,14 @@ window.shareHomecareWithFamily = function (name) {
                 Post-Op Care
               </span>
             </button>
-            <button>
+            <button
               onclick="filterCategory('homecare')"
               class="p-4 rounded-2xl bg-saino-gray-50 border border-saino-gray-200 hover:border-saino-red/30 transition">
+
               <i data-lucide="activity"
-                 class="w-5 h-5 text-saino-red mx-auto">
+                class="w-5 h-5 text-saino-red mx-auto">
               </i>
+
               <span class="block mt-2 text-[10px] font-black text-saino-gray-800">
                 Home Physio
               </span>
@@ -3361,7 +3847,7 @@ function renderListYourCareView() {
             SUBSCRIPTION TIERS & VERIFIED BADGES
           </span>
           <h2 class="text-xl md:text-3xl font-extrabold text-slate-900 mt-2 mb-2">Choose the Right Growth Plan for Your Facility</h2>
-          <p class="text-xs md:text-sm text-slate-500">Choose Free Listing, SAINO Verified (VIP), or SAINO VVIP</p>
+          <p class="text-xs md:text-sm text-slate-500">Choose a paid SAINO provider plan</p>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -3524,7 +4010,6 @@ function renderListYourCareView() {
           <div>
             <label class="block font-bold text-slate-200 mb-1">Choose Verification Plan</label>
             <select id="regPlanSelect" class="w-full bg-slate-900 border border-white/20 rounded-xl p-3 text-white focus:outline-none focus:ring-2 focus:ring-rose-400">
-              <option value="saino_listed">Free Listing (INR 0)</option>
               <option value="saino_pro" selected>SAINO Verified (VIP)</option>
               <option value="saino_prime">SAINO VVIP</option>
             </select>
@@ -6055,6 +6540,7 @@ window.updatePatientProfileMenu = function() {
   const sub = document.getElementById('patientProfileSubtitle');
   const authLinks = document.getElementById('patientAuthLinks');
   const logout = document.getElementById('patientLogoutLink');
+  window.SAINO_LOGGED_IN_USER = user;
   const initials = user?.name ? user.name.trim().split(/\s+/).slice(0,2).map(x => x[0]).join('').toUpperCase() : '';
   if (avatar) avatar.innerHTML = initials ? escapeCommunityText(initials) : '<i data-lucide="user-round" class="w-4 h-4"></i>';
   const menuAvatar = document.getElementById('patientProfileAvatarMenu');
@@ -6804,56 +7290,7 @@ function syncDiscoverySlideDOM() {
 }
 
 // Load real, approved providers from the backend
-async function loadNearbyProviders() {
-  const target = document.getElementById('nearbyProvidersList');
-  if (!target) return;
 
-  target.innerHTML = `
-    <div class="p-6 text-center text-slate-400 text-sm">
-      Loading providers...
-    </div>
-  `;
-
-  try {
-    const response = await fetch('/api/public/providers', {
-      headers: { Accept: 'application/json' }
-    });
-
-    if (!response.ok) {
-      throw new Error(`Provider API failed: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const providers = Array.isArray(data)
-      ? data
-      : (Array.isArray(data.providers) ? data.providers : []);
-
-    if (!providers.length) {
-      target.innerHTML = `
-        <div class="p-6 text-center text-slate-500 text-sm">
-          No approved healthcare providers are available yet.
-        </div>
-      `;
-      return;
-    }
-
-    target.innerHTML = providers
-      .map((provider, index) => renderHospitalCard(provider, index))
-      .join('');
-
-  } catch (error) {
-    console.error('Unable to load live providers:', error);
-
-    target.innerHTML = `
-      <div class="p-6 text-center text-red-600 text-sm">
-        Healthcare listings could not be loaded.
-        Please refresh the page.
-      </div>
-    `;
-  }
-}
-
-    // 2. Card Generator UI
     function renderHospitalCard(prov, index) {
   const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(prov.mapQuery || prov.name)}`;
   const initialThree = (prov.departments || []).slice(0, 3);
@@ -6963,7 +7400,7 @@ async function loadNearbyProviders() {
   window.location.hash = `#providers?hospital=${encodeURIComponent(hospitalName)}`;
 };
 
-// Global toggle function (Ye bilkul bahar hona chahiye)
+// Global toggle function (
 window.toggleSpecialties = function(cardId) {
   const moreSpan = document.getElementById(cardId + '-more');
   const btn = document.getElementById(cardId + '-btn');
@@ -7486,91 +7923,166 @@ function renderInlineDiscussionMessage(message, discussionId, depth = 0) {
     </div>
   `;
 }
-
-window.renderAllDiscussionsView = function() {
-  const savedQuestions = loadSavedCommunityQuestions();
-  savedQuestions.forEach(item => {
-    if (!window.DISCUSSIONS_STORE[item.id]) window.DISCUSSIONS_STORE[item.id] = item;
-  });
-  const list = Object.values(window.DISCUSSIONS_STORE || {})
-    .filter(item => item && item.id && item.question)
-    .map(item => ({
-      ...item,
-      hospital: item.hospital || 'Saino Community',
-      logo: item.logo || String(item.hospital || 'SC').split(/\s+/).slice(0, 2).map(word => word[0]).join('').toUpperCase(),
-      time: item.time || 'Recently',
-      replies: Number(item.replies) || (item.comments || []).reduce((total, comment) => total + 1 + (comment.replies || []).length, 0),
-      helpful: Number(item.helpful) || Number(item.likes) || 0
-    }))
-    .reverse();
-
-  const renderThread = item => {
-    const comments = Array.isArray(item.comments) ? item.comments : [];
-    const messageCount = countDiscussionMessages(comments);
-    const conversation = comments.map(comment => renderInlineDiscussionMessage(comment, item.id)).join('');
-    return `
-      <article data-thread-id="${escapeCommunityText(item.id)}" class="scroll-mt-6 flex h-[560px] flex-col rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm text-left">
-        <div class="flex shrink-0 items-start gap-3">
-          <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-xs font-extrabold text-[#B91C1C]">${escapeCommunityText(item.logo)}</div>
-          <div class="min-w-0 flex-1">
-            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <h2 class="text-sm font-bold text-slate-900">${escapeCommunityText(item.hospital)}</h2>
-              <span class="text-[11px] text-slate-400">${escapeCommunityText(item.time)}</span>
-            </div>
-            <p class="mt-1 line-clamp-3 break-words text-sm font-semibold leading-relaxed text-slate-800">${escapeCommunityText(item.question)}</p>
-            <div class="mt-2 flex items-center gap-3 text-[11px] text-slate-500">
-              <span>${messageCount} messages</span>
-              <span>${item.helpful} helpful</span>
-            </div>
-          </div>
-        </div>
-        <div class="discussion-conversation-scroll mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain rounded-2xl bg-slate-50 p-3 sm:p-4">
-          ${conversation || '<p class="px-2 py-1 text-xs text-slate-500">No replies yet. Start the conversation.</p>'}
-        </div>
-      </article>
-    `;
-  };
+window.renderAllDiscussionsView = function () {
+  setTimeout(() => {
+    window.loadCommunityDiscussions();
+  }, 0);
 
   return `
     <div class="max-w-6xl mx-auto px-4 sm:px-6 py-8 mb-16">
+
       <div class="mb-8">
-        <button onclick="navigateTo('discovery')" class="text-xs font-bold text-rose-600 hover:text-rose-700 flex items-center space-x-1 mb-3 cursor-pointer">
-          <span>← Back to Discovery</span>
+        <button onclick="navigateTo('discovery')"
+          class="text-xs font-bold text-[#B91C1C] mb-3">
+          ← Back to Discovery
         </button>
-        <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900">Healthcare Community Discussions</h1>
-        <p class="text-xs sm:text-sm text-slate-500 mt-1">Ask questions, read patient experiences, and discuss care across hospitals in Nepal.</p>
+
+        <h1 class="text-2xl sm:text-3xl font-extrabold text-[#1A2B4C]">
+          Healthcare Community Discussions
+        </h1>
+
+        <p class="text-sm text-slate-500 mt-1">
+          Ask questions, read patient experiences, and discuss healthcare.
+        </p>
       </div>
 
-      <div class="space-y-5">
-        ${list.map(renderThread).join('')}
+      <div id="communityDiscussionList" class="space-y-5">
+        <p class="text-sm text-slate-500">Loading discussions...</p>
       </div>
 
-      <form id="discussionReplyComposer" hidden style="display:none" class="mt-2 flex items-center gap-2 rounded-full border border-slate-200 bg-white p-1 pl-4 shadow-xs focus-within:border-rose-300 focus-within:ring-2 focus-within:ring-rose-100"
-        onsubmit="window.submitInlineDiscussionReply(event)">
-        <label class="sr-only" for="discussionReplyInput">Write a reply</label>
-        <input id="discussionReplyInput" name="reply" required maxlength="1000" autocomplete="off" placeholder="Write a reply..."
-          class="min-w-0 flex-1 bg-transparent py-2 text-xs text-slate-800 outline-none placeholder:text-slate-400">
-        <button type="submit" aria-label="Send reply" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#B91C1C] text-white transition hover:bg-[#991B1B]">
-          <i data-lucide="send" class="h-4 w-4"></i>
-        </button>
-      </form>
+      <section class="mt-8 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+        <h2 class="text-lg font-bold text-[#1A2B4C]">
+          Ask the Community
+        </h2>
 
-      <section class="mt-8 rounded-2xl border border-slate-200 bg-white/80 p-4 sm:p-6 shadow-sm">
-        <h2 class="text-base sm:text-lg font-bold text-slate-900">Ask the Community</h2>
-        <p class="mt-1 text-xs sm:text-sm text-slate-500">Share a question and hear from people with real healthcare experiences.</p>
-        <form class="mt-4 flex flex-col sm:flex-row items-stretch gap-3" onsubmit="submitCommunityQuestion(event)">
-          <label class="sr-only" for="communityQuestionInput">Your question</label>
-          <textarea id="communityQuestionInput" rows="2" maxlength="1000" required
-            placeholder="Write your question here..."
-            class="min-h-[72px] flex-1 resize-y rounded-xl border border-slate-200 bg-transparent px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-100"></textarea>
-          <button type="submit" class="inline-flex items-center justify-center gap-2 self-end rounded-xl bg-[#B91C1C] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#991B1B] sm:self-stretch">
-            <i data-lucide="send" class="h-4 w-4"></i>
-            Send
+        <p class="text-sm text-slate-500 mt-1">
+          Have a healthcare question? Share it with the community.
+        </p>
+
+        <form class="mt-4 flex flex-col gap-3"
+          onsubmit="submitCommunityQuestion(event)">
+
+          <textarea id="communityQuestionInput"
+            rows="3"
+            maxlength="2000"
+            required
+            placeholder="What would you like to ask?"
+            class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:outline-none focus:border-[#B91C1C]">
+          </textarea>
+
+          <button type="submit"
+            class="self-end rounded-xl bg-[#B91C1C] px-6 py-3 text-sm font-bold text-white hover:bg-red-800">
+            Post Question
           </button>
+
         </form>
       </section>
     </div>
   `;
+};
+
+
+window.loadCommunityDiscussions = async function () {
+  const list = document.getElementById('communityDiscussionList');
+
+  if (!list) return;
+
+  try {
+    const response = await fetch('/api/public/community-discussions');
+
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (!data.success || !Array.isArray(data.discussions)) {
+      throw new Error('Invalid API response');
+    }
+
+    window.DISCUSSIONS_STORE = {};
+
+    if (!data.discussions.length) {
+      list.innerHTML = `
+        <div class="rounded-2xl border border-slate-200 bg-white p-8 text-center">
+          <h3 class="font-bold text-[#1A2B4C]">No discussions yet</h3>
+          <p class="text-sm text-slate-500 mt-2">
+            Be the first to ask a healthcare question.
+          </p>
+        </div>
+      `;
+      return;
+    }
+
+    data.discussions.forEach(item => {
+      const discussion = {
+        ...item,
+        id: String(item.id),
+        hospital: item.provider_name || 'Saino Community',
+        logo: 'SC',
+        time: item.created_at
+          ? new Date(item.created_at).toLocaleString()
+          : 'Recently',
+        comments: [],
+        replies: 0,
+        helpful: 0
+      };
+
+      window.DISCUSSIONS_STORE[discussion.id] = discussion;
+    });
+
+    list.innerHTML = data.discussions.map(item => `
+      <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+
+        <div class="flex items-center gap-3 mb-3">
+          <div class="h-10 w-10 flex items-center justify-center rounded-xl bg-red-50 text-sm font-bold text-[#B91C1C]">
+            SC
+          </div>
+
+          <div>
+            <h3 class="font-bold text-[#1A2B4C]">
+              ${escapeCommunityText(item.patient_name || 'Patient')}
+            </h3>
+
+            <p class="text-xs text-slate-400">
+              ${item.created_at
+                ? new Date(item.created_at).toLocaleString()
+                : 'Recently'}
+            </p>
+          </div>
+        </div>
+
+        <p class="text-sm font-semibold leading-relaxed text-slate-800">
+          ${escapeCommunityText(item.question)}
+        </p>
+
+        ${item.details ? `
+          <p class="mt-2 text-sm text-slate-600">
+            ${escapeCommunityText(item.details)}
+          </p>
+        ` : ''}
+
+        <div class="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
+          ${item.city ? `<span>${escapeCommunityText(item.city)}</span>` : ''}
+          ${item.category ? `<span>· ${escapeCommunityText(item.category)}</span>` : ''}
+        </div>
+
+      </article>
+    `).join('');
+
+  } catch (error) {
+    console.error('Community discussions error:', error);
+
+    const currentList = document.getElementById('communityDiscussionList');
+
+    if (currentList) {
+      currentList.innerHTML = `
+        <p class="text-sm text-red-600">
+          Unable to load discussions. Please try again.
+        </p>
+      `;
+    }
+  }
 };
 
 window.submitInlineDiscussionReply = function(event) {
@@ -7634,40 +8146,56 @@ window.toggleInlineMessageLike = function(discussionId, messageId, button) {
   button.innerHTML = `<span aria-hidden="true">♥</span><span>${message.isLiked ? 'Liked' : 'Like'}${message.likes ? ` · ${message.likes}` : ''}</span>`;
 };
 
-window.submitCommunityQuestion = function(event) {
+window.submitCommunityQuestion = async function(event) {
   event.preventDefault();
+
   const input = document.getElementById('communityQuestionInput');
   const question = input?.value.trim();
+
   if (!question) {
     showToast('Write a question before sending.');
     input?.focus();
     return;
   }
 
-  const item = {
-    id: `community-${Date.now()}`,
-    hospital: 'Saino Community',
-    logo: 'SC',
-    time: 'Just now',
-    question,
-    likes: 0,
-    comments: [],
-    createdAt: Date.now()
-  };
-  const savedQuestions = loadSavedCommunityQuestions();
-  savedQuestions.unshift(item);
+  const form = event.currentTarget;
+  const submitButton = form.querySelector('button[type="submit"]');
+
   try {
-    localStorage.setItem('SAINO_COMMUNITY_QUESTIONS', JSON.stringify(savedQuestions));
+    if (submitButton) submitButton.disabled = true;
+
+    const response = await fetch('/api/public/community-discussions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+          question: question,
+          patient_name: window.SAINO_LOGGED_IN_USER?.name || 'Patient',
+          category: 'General'
+        })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || `API Error: ${response.status}`);
+    }
+
+    input.value = '';
+
+    await window.loadCommunityDiscussions();
+
+    showToast('Your question was posted successfully.');
+
   } catch (error) {
-    console.error('Unable to save community question.', error);
-    showToast('Your question could not be saved. Please try again.');
-    return;
+    console.error('Community question submission error:', error);
+    showToast(error.message || 'Unable to post your question.');
+  } finally {
+    if (submitButton) submitButton.disabled = false;
   }
-  window.DISCUSSIONS_STORE[item.id] = item;
-  renderApp();
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-  showToast('Your question was sent to the community.');
 };
+
 // 1. LocalStorage Store & Filter States
 window.REVIEWS_STORE = JSON.parse(localStorage.getItem('NEPAL_HEALTH_REVIEWS')) || {
   'disc-grande': [

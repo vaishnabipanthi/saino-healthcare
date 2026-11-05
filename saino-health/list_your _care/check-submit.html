@@ -1017,7 +1017,7 @@
         }
       } catch (error) {
         console.error("API Error:", error);
-        alert("SAINO backend is not accessible. Please ensure the backend server is running on port 4000 and /api/health shows the database as connected.");
+        alert("Unable to connect to SAINO server. Please try again shortly or contact support.");
         if (submitBtn) {
           submitBtn.disabled = false;
           submitBtn.innerText = "Submit Registration";

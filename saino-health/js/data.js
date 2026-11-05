@@ -1318,24 +1318,6 @@ window.SAINO_DATA = {
 
   subscriptionTiers: [
     {
-      id: 'saino_listed',
-      name: 'FREE LISTING',
-      badge: 'SAINO Free Listing',
-      price: 'NPR 0 / Free',
-      annualPrice: 'NPR 0 / year',
-      period: 'Basic marketplace presence',
-      highlight: false,
-      features: [
-        'Provider profile, logo and facility photos',
-        'Address, contact number and opening hours',
-        'Up to 2 basic services',
-        'Limited booking and comment features',
-        'Standard marketplace visibility'
-      ],
-      cta: 'Start Free Listing',
-      type: 'free'
-    },
-    {
       id: 'saino_pro',
       name: 'SAINO VERIFIED (VIP)',
       badge: 'SAINO Verified Trust Badge',
@@ -1345,7 +1327,7 @@ window.SAINO_DATA = {
       highlight: true,
       popularTag: 'TRUSTED PROVIDER',
       features: [
-        'Everything in Free Listing',
+        'Provider profile and organization information',
         'Up to 5 services',
         'View patient reviews and comments',
         'Reply to patient reviews',

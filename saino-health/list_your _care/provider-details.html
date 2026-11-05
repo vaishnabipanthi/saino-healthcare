@@ -59,11 +59,10 @@
     .step.active .circle { background: #b3121a; color: white; }
 
     .onboarding-note { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; font-size: 11px; margin-bottom: 18px; color: #475569; }
-    .plans { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
+    .plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
     .plan-card { border: 1px solid #e0e3e7; border-radius: 8px; padding: 22px 18px 18px; min-height: 390px; display: flex; flex-direction: column; background: white; box-shadow: 0 1px 5px rgba(0,0,0,0.03); transition: transform 0.2s ease, border-color 0.2s ease; }
     .plan-card:hover { transform: translateY(-3px); border-color: #ad0b0e; }
     .plan-badge { text-align: center; color: #b3121a; font-size: 10px; font-weight: 700; margin-bottom: 14px; }
-    .free .plan-badge { color: #178b61; }
     .plan-name { text-align: center; font-size: 14px; font-weight: 800; margin-bottom: 7px; }
     .price { text-align: center; font-size: 18px; font-weight: 800; margin-bottom: 4px; }
     .month { text-align: center; color: #737c88; font-size: 11px; margin-bottom: 13px; }
@@ -214,27 +213,6 @@
     </div>
 
     <div class="plans">
-      <!-- FREE -->
-      <div class="plan-card free">
-        <div class="plan-badge">🟢 Saino Free</div>
-        <h3 class="plan-name">FREE LISTING</h3>
-        <div class="price">NPR 0 / month</div>
-        <div class="month">Free Forever</div>
-        <p class="plan-description-small">
-          Best for: Getting started<br>
-          Create your healthcare presence on Saino and help patients discover your organization.
-        </p>
-        <ul class="features">
-          <li>Basic provider profile</li>
-          <li>Organization information</li>
-          <li>Services listing</li>
-          <li>Patient discovery</li>
-        </ul>
-        <button class="choose-btn" onclick="selectPlan('Saino Free', 'NPR 0 / month', 'Free Forever')">
-          Choose Free
-        </button>
-      </div>
-
       <!-- PRO -->
       <div class="plan-card">
         <div class="plan-badge">🔵 Saino Pro</div>
@@ -246,7 +224,7 @@
           Build a stronger healthcare presence with enhanced profile visibility and useful provider features.
         </p>
         <ul class="features">
-          <li>Everything in Free</li>
+          <li>Provider profile and organization information</li>
           <li>Enhanced profile</li>
           <li>More service information</li>
           <li>Improved visibility</li>
@@ -389,12 +367,7 @@
       localStorage.setItem("selectedPlanName", planName);
       localStorage.setItem("selectedPlanPrice", planPrice);
       localStorage.setItem("selectedPlanPeriod", planPeriod);
-
-      if (planName === "Saino Free") {
-        window.location.href = "check-submit.html";
-      } else {
-        window.location.href = "legal-agreement.html";
-      }
+      window.location.href = "legal-agreement.html";
     }
   </script>
 </body>

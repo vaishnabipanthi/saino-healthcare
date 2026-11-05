@@ -781,6 +781,10 @@ window.renderAppointmentBookingView = function() {
     String(item.id) === String(window.BOOKING_STATE.providerId) ||
     String(item.name) === String(window.BOOKING_STATE.hospitalName)
   );
+  const providerImage = provider
+  ? provider.logo_url || provider.logo ||
+    provider.cover_image_url || provider.image || ""
+  : "";
   const doctorOptions = (provider && Array.isArray(provider.doctors) ? provider.doctors : [])
     .map(doctor => typeof doctor === "string" ? null : ({
       ...doctor,
@@ -806,8 +810,11 @@ window.renderAppointmentBookingView = function() {
 
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-3.5">
-              <div class="w-12 h-12 rounded-xl bg-red-50 border border-red-100 flex items-center justify-center text-red-700 font-black text-sm">
-                ${currentProviderName.slice(0, 2).toUpperCase()}
+              <div class="w-12 h-12 rounded-xl overflow-hidden bg-red-50 border border-red-100 shrink-0">
+                ${providerImage
+                  ? `<img src="${escapeField(providerImage)}" alt="${escapeField(currentProviderName)}" class="w-full h-full object-cover">`
+                  : `<div class="w-full h-full flex items-center justify-center text-red-700 font-black text-sm">${currentProviderName.slice(0, 2).toUpperCase()}</div>`
+                }
               </div>
               <div>
                 <div class="flex items-center gap-2">
@@ -816,7 +823,7 @@ window.renderAppointmentBookingView = function() {
                     Saino Verified
                   </span>
                 </div>
-                <p class="text-xs text-slate-500 mt-0.5">${window.BOOKING_STATE.location || "Kathmandu"}</p>
+                <p class="text-xs text-slate-500 mt-0.5">${window.BOOKING_STATE.location || "Bengaluru"}</p>
               </div>
             </div>
 
@@ -852,8 +859,14 @@ window.renderAppointmentBookingView = function() {
                             class="w-full text-left cursor-pointer rounded-2xl p-4 relative transition ${selected ? 'border-2 border-red-600 bg-red-50/20' : 'border border-slate-200 bg-white hover:border-slate-300'}">
                       <div class="flex items-start justify-between">
                         <div class="flex items-center gap-3">
-                          ${window.renderUserProfileIcon("w-12 h-12", "w-6 h-6")}
-                          <div>
+                            <div class="w-12 h-12 rounded-full overflow-hidden border border-slate-200 bg-slate-100 shrink-0">
+                              <img
+                                src="${escapeField(doctor.avatar_url || doctor.photo_url || doctor.image || 'assets/logo.png')}"
+                                alt="${escapeField(doctor.name)}"
+                                class="w-full h-full object-cover"
+                              >
+                            </div>
+                            <div>
                             <h3 class="text-xs font-bold text-slate-900">${doctor.name}</h3>
                             <p class="text-[11px] text-slate-500">${doctor.role || "Consultant"}</p>
                           </div>
@@ -970,7 +983,7 @@ window.renderAppointmentBookingView = function() {
               </button>
 
               <p class="text-[10px] text-slate-500 text-center mt-3">
-                ${isDiagnosticPackage ? "Package payment is handled by the diagnostic partner." : "Online payment to SAINO is required to confirm this appointment. A request and queue token are saved if payment setup is unavailable."}
+                ${isDiagnosticPackage ? "Package payment is handled by the diagnostic partner." : "Online payment to SAINO is required to confirm this appointment. The queue token appears in live tracking after provider confirmation."}
               </p>
             </div>
           </div>
@@ -1079,7 +1092,7 @@ window.openAppointmentBooking = function(providerId, doctorName, doctorRole, doc
   if (p) {
     window.BOOKING_STATE.providerId = p.id;
     window.BOOKING_STATE.hospitalName = p.name;
-    window.BOOKING_STATE.location = p.location || p.address || "Kathmandu";
+    window.BOOKING_STATE.location = p.location || p.address || "Bengaluru";
     const firstDoctor = (p.doctors || []).find(d => d && typeof d === 'object' && d.id);
     if (firstDoctor) {
       window.BOOKING_STATE.doctorName = firstDoctor.name || '';
@@ -1131,11 +1144,9 @@ window.renderAppointmentSuccessView = function(patientData) {
   // 1. Generate Unique SAINO Booking ID (e.g. SAINO-2026-89412)
   const sainoBookingId = bp.sainoBookingId || ("SAINO-2026-" + Math.floor(10000 + Math.random() * 90000));
   
-  // 2. Generate Live Queue Token & Room (Matches Docx: A-Citycare 21 token / Room 301)
-  const tokenPrefix = (bp.hospitalName || "CityCare").substring(0, 8).replace(/\s+/g, '');
-  const tokenNum = Math.floor(18 + Math.random() * 8);
-  const queueToken = bp.queueToken || `A-${tokenPrefix}-${tokenNum}`;
-  const nowServingToken = `A-${tokenPrefix}-${Math.max(1, tokenNum - 2)}`;
+  // 2. Queue details are shown only on the live tracking page.
+  const queueToken = "Open live tracking after provider confirmation";
+  const nowServingToken = "Not started";
   const doctorRoom = bp.room || "Room 301";
   const estWaitTime = "12 Minutes";
   const doctorName = bp.doctorName || "Dr. Aayush Sharma";
@@ -1184,7 +1195,7 @@ window.renderAppointmentSuccessView = function(patientData) {
             
             <!-- Left Col: Giant Token Display -->
             <div class="md:col-span-5 bg-white/5 rounded-2xl p-5 border border-white/10 text-center space-y-2">
-              <span class="text-[11px] font-bold text-slate-400 uppercase tracking-widest block">YOUR QUEUE TOKEN</span>
+              <span class="text-[11px] font-bold text-slate-400 uppercase tracking-widest block">QUEUE TOKEN</span>
               <div class="text-4xl sm:text-5xl font-black text-white font-mono tracking-tight text-emerald-400 drop-shadow">
                 ${queueToken}
               </div>
@@ -1334,12 +1345,9 @@ if (typeof originalRenderHospital === "function") {
   };
 }
 
-// Run immediately once
 applyLaptopScale();
 /* ============================================================
    DIRECTORY FILTERS + CLEAR + DISTANCE + DISCUSSIONS + HOME CARD HELPERS
-   (Pehle yahan runLiveFilters / clearAllFilters the. Ab filters category ke hisaab se chalte hain.)
-   NOTE: purani hospital-filters.js ab nahi chahiye, usse hata dein (isme sab aa gaya hai).
    ============================================================ */
 
 window.toggleDirectoryFilter = function(groupId) {
@@ -1455,24 +1463,34 @@ window.toggleHomeDepartments = function(providerId) {
   btn.textContent = nowHidden ? btn.getAttribute("data-label") : "Show less";
 };
 
+window.sainoBookingTrackingUrl = function(trackingToken) {
+  const url = new URL(window.location.href);
+  url.search = '';
+  url.searchParams.set('bookingTrack', trackingToken);
+  url.hash = 'appointments';
+  return url.toString();
+};
+
 // Booking IDs, fees and queue data come from the API response, never the browser.
 window.renderAppointmentSuccessView = function(booking) {
   const b = booking || {};
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  const trackingUrl = b.tracking_token ? window.sainoBookingTrackingUrl(b.tracking_token) : '';
   const paymentUnavailable = Boolean(b.payment_unavailable);
   const confirmed = b.payment_status === 'paid' && ['pending','confirmed','checked_in','waiting','in_progress','completed'].includes(String(b.status || '').toLowerCase());
   const bookingMessage = paymentUnavailable
-    ? 'Your booking request and queue token are saved. Online payment is not configured yet; the appointment is awaiting payment.'
+    ? 'Your booking request is saved. The queue token will appear in live tracking after provider confirmation. Online payment is not configured yet.'
     : b.payment_status !== 'paid' && Number(b.amount || 0) > 0
-      ? 'Complete payment to confirm this appointment. Your booking ID and token are saved.'
+      ? 'Complete payment to confirm this appointment. Your queue token will appear in live tracking after provider confirmation.'
       : 'Your request is saved. The provider will confirm it and update your live queue status.';
   return `<section id="booking-confirmation-container" class="max-w-3xl mx-auto px-4 py-10"><div class="rounded-2xl border border-emerald-200 bg-white p-6 shadow-sm">
     <p class="text-xs font-bold uppercase tracking-wide text-emerald-700">${confirmed ? 'Appointment confirmed' : 'Booking request saved'}</p>
     <h1 class="mt-2 text-2xl font-black text-slate-900">${esc(b.provider_name || window.BOOKING_STATE.hospitalName)}</h1>
     <p id="bookingConfirmationMessage" class="mt-2 text-sm text-slate-600">${esc(bookingMessage)}</p>
     <dl class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+      <div><dt class="text-slate-500">Patient</dt><dd class="font-bold">${esc(b.patient_name || window.BOOKING_STATE.patientName || 'Patient')}</dd></div>
       <div><dt class="text-slate-500">Booking ID</dt><dd class="font-bold">${esc(b.booking_id || '—')}</dd></div>
-      <div><dt class="text-slate-500">Queue token</dt><dd id="bookingToken" class="font-bold">${esc(b.token || 'Not assigned')}</dd></div>
+      <div><dt class="text-slate-500">Queue token</dt><dd id="bookingToken" class="font-bold">Open live tracking after provider confirmation</dd></div>
       <div><dt class="text-slate-500">Doctor</dt><dd class="font-bold">${esc(b.doctor_name || 'Provider to assign')}</dd></div>
       <div><dt class="text-slate-500">Visit</dt><dd class="font-bold">${esc(b.appointment_date || '')} ${esc(b.slot_time || '')}</dd></div>
       <div><dt class="text-slate-500">Status</dt><dd id="bookingStatus" class="font-bold uppercase">${esc(b.status || 'pending')}</dd></div>
@@ -1484,6 +1502,7 @@ window.renderAppointmentSuccessView = function(booking) {
       <div><dt class="text-slate-500">Visit ID</dt><dd id="bookingVisitId" class="font-bold">${esc(b.visit_id || 'Issued at check-in')}</dd></div>
       <div><dt class="text-slate-500">Consultation fee</dt><dd class="font-bold">₹${Number(b.amount || 0).toLocaleString('en-IN')}</dd></div>
     </dl>
+    ${trackingUrl ? `<div class="mt-5"><a id="bookingTrackingLink" href="${esc(trackingUrl)}" class="inline-flex rounded-xl bg-slate-900 px-5 py-3 text-sm font-bold text-white">Track your appointment</a><p class="mt-2 text-xs text-slate-500">Tap to see your booking details and live updates. No ID entry needed.</p></div>` : ''}
     <div class="mt-5 rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs text-sky-900"><strong>SAINO notification</strong><p id="bookingPatientNotification" class="mt-1">Booking details and future provider updates are saved to your patient account.</p></div>
     <p id="bookingLiveUpdatedAt" class="mt-3 text-[11px] text-slate-500" aria-live="polite">Live appointment updates will appear here.</p>
     <div class="mt-6 flex flex-wrap gap-3">${b.payment_required && b.payment_status !== 'paid' && !b.payment_unavailable ? '<button id="retryPatientPayment" onclick="retryPatientBookingPayment()" class="rounded-xl bg-emerald-700 px-4 py-3 text-sm font-bold text-white">Pay online</button>' : ''}<button onclick="refreshAppointmentStatus()" class="rounded-xl bg-red-700 px-4 py-3 text-sm font-bold text-white">Refresh live status</button><button onclick="navigateTo('marketplace')" class="rounded-xl border px-4 py-3 text-sm font-bold">Back to marketplace</button></div>
@@ -1506,7 +1525,6 @@ window.refreshAppointmentStatus = async function() {
     const notificationPayload = await notificationResponse.json().catch(() => ({}));
     if (!bookingResponse.ok || !bookingPayload.success || !bookingPayload.booking) throw new Error(bookingPayload.error || 'Live appointment status is unavailable.');
     const b = bookingPayload.booking;
-    put('bookingToken', b.token || 'Not assigned');
     put('bookingStatus', b.status || 'pending');
     put('bookingPaymentStatus', b.payment_status || 'pending');
     put('bookingQueuePosition', b.queue?.position ? b.queue.position : (['waiting','checked_in'].includes(String(b.status).toLowerCase()) ? '1' : 'Provider check-in pending'));
@@ -1514,6 +1532,8 @@ window.refreshAppointmentStatus = async function() {
     put('bookingRoom', b.room || b.queue?.room || 'Provider will update');
     put('bookingEta', b.queue?.eta_minutes == null ? 'Not available yet' : `${b.queue.eta_minutes} minutes`);
     put('bookingVisitId', b.visit_id || 'Issued at check-in');
+    const trackingLink = document.getElementById('bookingTrackingLink');
+    if (trackingLink && b.tracking_token) trackingLink.href = window.sainoBookingTrackingUrl(b.tracking_token);
     if (b.payment_status === 'paid') document.getElementById('retryPatientPayment')?.remove();
     const note = (notificationPayload.rows || []).find(row => row.booking_ref === bookingId);
     if (note) put('bookingPatientNotification', note.message);
@@ -1711,7 +1731,7 @@ window.submitRealBackendBooking = async function() {
   const bp = window.BOOKING_STATE || {};
   const selectedMode = document.querySelector('input[name="paymentOption"]:checked')?.value || 'cash_at_hospital';
   const btn = document.getElementById("finalBookBtn");
-  if (btn) { btn.disabled = true; btn.textContent = "Connecting to Database..."; }
+  if (btn) { btn.disabled = true; btn.textContent = "Processing..."; }
 
   // Date formatting for PostgreSQL
   let dateIso = bp.date;
@@ -1756,7 +1776,9 @@ window.submitRealBackendBooking = async function() {
     }
 
     const b = data.booking;
+    b.patient_name = bp.patientName;
     window.__SAINO_ACTIVE_BOOKING = b;
+    window.__SAINO_ACTIVE_BOOKING_ID = b.booking_id;
 
     // Save in LocalStorage for My Appointments
     try {
@@ -1767,7 +1789,7 @@ window.submitRealBackendBooking = async function() {
         doctor: b.doctor_name || bp.doctorName,
         date: b.appointment_date,
         timeSlot: b.slot_time,
-        token: b.token || '#07',
+        token: b.token || null,
         patientName: bp.patientName,
         patientPhone: bp.patientPhone,
         paymentMode: selectedMode === 'razorpay_qr' ? 'Online Paid (UPI QR)' : 'Cash at Hospital'
@@ -1778,17 +1800,20 @@ window.submitRealBackendBooking = async function() {
     // Show Confirmation View with Real Booking ID & Red Download PDF Button
     const main = document.getElementById("mainContent") || document.querySelector("main");
     if (main) {
+      const trackingUrl = b.tracking_token ? window.sainoBookingTrackingUrl(b.tracking_token) : '';
       main.innerHTML = `
         <div class="bg-[#f8fafc] min-h-screen text-slate-800 font-sans py-12 px-4 text-center">
           <div class="max-w-xl mx-auto bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
             <div class="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto text-3xl font-black mb-3">✓</div>
-            <h1 class="text-2xl font-black text-slate-900">${selectedMode === 'razorpay_qr' ? 'Payment &amp; Booking Successful!' : 'Booking Confirmed!'}</h1>
-            <p class="text-xs text-slate-500 mt-1">Your booking has been saved in the database for <strong>${b.provider_name}</strong>.</p>
+            <h1 class="text-2xl font-black text-slate-900">${selectedMode === 'razorpay_qr' ? 'Payment &amp; Booking Successful!' : 'Booking Request Submitted'}</h1>
+            <p class="text-xs text-slate-500 mt-1">Your booking request for <strong>${b.provider_name}</strong> is saved and waiting for provider confirmation.</p>
 
             <div class="my-6 p-5 rounded-2xl bg-red-50/70 border border-red-200">
-              <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Your Real Booking ID</span>
+              <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Patient</span>
+              <strong class="text-base font-bold text-slate-900 block mt-1">${bp.patientName}</strong>
+              <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mt-4">Booking ID</span>
               <strong class="text-2xl font-mono font-black text-[#ad0b0e] block mt-1">${b.booking_id}</strong>
-              <span class="text-xs text-slate-600 block mt-1 font-semibold">Queue Token: <strong class="text-slate-900">${b.token || '#07'}</strong></span>
+              <span class="text-xs text-slate-600 block mt-1 font-semibold">Your queue token will appear in live tracking after provider confirmation.</span>
             </div>
 
             <div class="text-left bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs space-y-2 mb-6">
@@ -1802,9 +1827,7 @@ window.submitRealBackendBooking = async function() {
               📄 Download PDF Confirmation Slip
             </button>
             
-            <button type="button" onclick="navigateTo('appointments')" class="w-full py-3 bg-slate-900 text-white text-xs font-bold rounded-xl transition">
-              Track Live Queue in My Appointments →
-            </button>
+            ${trackingUrl ? `<a href="${trackingUrl}" class="block w-full py-3 bg-slate-900 text-white text-xs font-bold rounded-xl transition">Track your appointment</a><p class="mt-2 text-[11px] text-slate-500">Tap once to open your booking automatically—no ID entry needed.</p>` : `<button type="button" onclick="navigateTo('appointments')" class="w-full py-3 bg-slate-900 text-white text-xs font-bold rounded-xl transition">Track your appointment</button><p class="mt-2 text-[11px] text-slate-500">Open My Appointments to track your booking.</p>`}
           </div>
         </div>
       `;
@@ -1844,7 +1867,7 @@ window.downloadRealAppointmentPdf = function() {
             <div class="brand">SAINO HEALTH</div>
             <div style="font-size:11px;color:#64748b;">Official Appointment &amp; Queue Pass</div>
           </div>
-          <div class="uid">Token: ${b.token || '#07'}</div>
+          <div class="uid">Queue token: shown in live tracking after provider confirmation</div>
         </div>
         <div class="row"><span class="lbl">Unique Booking ID</span><span class="val" style="color:#ad0b0e;">${b.booking_id || '—'}</span></div>
         <div class="row"><span class="lbl">Patient Name</span><span class="val">${bp.patientName || 'Patient'}</span></div>
@@ -1854,7 +1877,7 @@ window.downloadRealAppointmentPdf = function() {
         <div class="row"><span class="lbl">Appointment Date</span><span class="val">${b.appointment_date || bp.date}</span></div>
         <div class="row"><span class="lbl">Scheduled Time</span><span class="val">${b.slot_time || bp.timeSlot}</span></div>
         <div class="row"><span class="lbl">Payment Method</span><span class="val">${bp.paymentMode === 'razorpay_qr' ? 'Online Paid (UPI QR)' : 'Cash at Hospital Reception'}</span></div>
-        <p style="font-size:11px;color:#64748b;margin-top:20px;text-align:center;">Track your live queue position anytime in <strong>My Appointments</strong> using your Unique ID: <strong>${b.booking_id}</strong></p>
+        <p style="font-size:11px;color:#64748b;margin-top:20px;text-align:center;">Your queue token appears in live tracking after provider confirmation. Use the private tracking link in your booking confirmation.</p>
       </div>
       <script>window.onload = function(){ window.print(); };</script>
     </body>
